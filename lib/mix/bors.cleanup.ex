@@ -3,6 +3,8 @@ defmodule Mix.Tasks.Bors.Cleanup do
   import Mix.Ecto
   import Ecto.Query
 
+  @requirements ["app.start"]
+
   @shortdoc "Prune old batches and patches"
 
   @moduledoc """
@@ -34,7 +36,6 @@ defmodule Mix.Tasks.Bors.Cleanup do
 
         Enum.each(repos(), fn repo ->
           ensure_repo(repo, args)
-          {:ok, _} = repo.start_link()
 
           # Delete all batches older than N months which are done processing
           BorsNG.Database.Repo.delete_all(
@@ -61,8 +62,6 @@ defmodule Mix.Tasks.Bors.Cleanup do
                 p.updated_at < datetime_add(^NaiveDateTime.utc_now(), ^negative_months, "month")
             )
           )
-
-          repo.stop()
         end)
     end
   end
