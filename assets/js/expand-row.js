@@ -81,6 +81,7 @@ function doExpandRow(td) {
     const headItems = Array.prototype.slice.call(headRow.children);
     const colSpan = row.children.length;
     const items = Array.prototype.slice.call(row.children);
+    const itemsScrollHeight = items.map(item => item.scrollHeight);
     const l = items.length;
     const borsExp = document.createElement("tr");
     borsExp.className = "exp";
@@ -91,7 +92,7 @@ function doExpandRow(td) {
     borsExpInternal.appendChild(borsExpDl);
     let foundOne = false;
     for (var i = 0; i !== l; ++i) {
-        if (items[i].scrollHeight === 0) {
+        if (itemsScrollHeight[i] === 0) {
             foundOne = true;
             const dt = document.createElement("dt");
             dt.appendChild(document.createTextNode(headItems[i].innerText));
