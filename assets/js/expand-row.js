@@ -1,8 +1,23 @@
+// Global cache for scroll heights
+const scrollHeightCache = new Map();
+
+function cacheScrollHeights(items) {
+    scrollHeightCache.clear();
+    Array.prototype.forEach.call(items, function(td) {
+        const row = td.parentElement;
+        const rowItems = Array.prototype.slice.call(row.children);
+        const rowCache = rowItems.map(rowItem => rowItem.scrollHeight);
+        scrollHeightCache.set(row, rowCache);
+    });
+}
+
 const items = document.querySelectorAll("td.expand-row");
+cacheScrollHeights(items);
 Array.prototype.forEach.call(items, convertExpandRow);
 
 window.addEventListener("resize", function() {
     const items = document.querySelectorAll("td.expand-row");
+    cacheScrollHeights(items);
     Array.prototype.forEach.call(items, convertExpandRow);
     convertIndicator();
 });
@@ -81,7 +96,6 @@ function doExpandRow(td) {
     const headItems = Array.prototype.slice.call(headRow.children);
     const colSpan = row.children.length;
     const items = Array.prototype.slice.call(row.children);
-    const itemsScrollHeight = items.map(item => item.scrollHeight);
     const l = items.length;
     const borsExp = document.createElement("tr");
     borsExp.className = "exp";
@@ -91,8 +105,9 @@ function doExpandRow(td) {
     const borsExpDl = document.createElement("dl");
     borsExpInternal.appendChild(borsExpDl);
     let foundOne = false;
+    const cachedScrollHeights = scrollHeightCache.get(row) || [];
     for (var i = 0; i !== l; ++i) {
-        if (itemsScrollHeight[i] === 0) {
+        if (cachedScrollHeights[i] === 0) {
             foundOne = true;
             const dt = document.createElement("dt");
             dt.appendChild(document.createTextNode(headItems[i].innerText));
