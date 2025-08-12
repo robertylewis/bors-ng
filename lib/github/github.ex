@@ -166,13 +166,7 @@ defmodule BorsNG.GitHub do
 
   @spec delete_branch!(tconn, binary) :: :ok
   def delete_branch!(repo_conn, branch) do
-    :ok =
-      GenServer.call(
-        BorsNG.GitHub,
-        {:delete_branch, repo_conn, {branch}},
-        Confex.fetch_env!(:bors, :api_github_timeout)
-      )
-
+    :ok = call_with_retry(:delete_branch, repo_conn, {branch})
     :ok
   end
 
@@ -182,13 +176,7 @@ defmodule BorsNG.GitHub do
           commit_message: bitstring
         }) :: %{commit: binary, tree: binary} | :conflict
   def merge_branch!(repo_conn, info) do
-    {:ok, commit} =
-      GenServer.call(
-        BorsNG.GitHub,
-        {:merge_branch, repo_conn, {info}},
-        Confex.fetch_env!(:bors, :api_github_timeout)
-      )
-
+    {:ok, commit} = call_with_retry(:merge_branch, repo_conn, {info})
     commit
   end
 
@@ -329,29 +317,8 @@ defmodule BorsNG.GitHub do
 
   @spec post_commit_status!(tconn, {binary, tstatus, binary, binary}) :: :ok
   def post_commit_status!(repo_conn, {sha, status, msg, url}) do
-    # Auto-retry
-    first_try =
-      GenServer.call(
-        BorsNG.GitHub,
-        {:post_commit_status, repo_conn, {sha, status, msg, url}},
-        Confex.fetch_env!(:bors, :api_github_timeout)
-      )
-
-    case first_try do
-      :ok ->
-        :ok
-
-      _ ->
-        Process.sleep(11)
-
-        :ok =
-          GenServer.call(
-            BorsNG.GitHub,
-            {:post_commit_status, repo_conn, {sha, status, msg, url}},
-            Confex.fetch_env!(:bors, :api_github_timeout)
-          )
-    end
-
+    # keep original delay of 11 ms
+    :ok = call_with_retry(:post_commit_status, repo_conn, {sha, status, msg, url}, 11, 11)
     :ok
   end
 
@@ -455,6 +422,32 @@ defmodule BorsNG.GitHub do
     case check_name do
       "Travis CI - Branch" -> "continuous-integration/travis-ci/push"
       check_name -> check_name
+    end
+  end
+
+  # Private function to handle retry logic with exponential backoff
+  defp call_with_retry(action, repo_conn, params, min_delay \\ 1_000, max_delay \\ 5_000) do
+    timeout = Confex.fetch_env!(:bors, :api_github_timeout)
+    do_call_with_retry(action, repo_conn, params, timeout, min_delay, max_delay)
+  end
+
+  defp do_call_with_retry(action, repo_conn, params, timeout, current_delay, max_delay) do
+    result = GenServer.call(BorsNG.GitHub, {action, repo_conn, params}, timeout)
+
+    case result do
+      :ok ->
+        :ok
+
+      {:ok, _} = success ->
+        success
+
+      _ when current_delay > max_delay ->
+        # Final attempt - return whatever we get
+        GenServer.call(BorsNG.GitHub, {action, repo_conn, params}, timeout)
+
+      _ ->
+        Process.sleep(current_delay)
+        do_call_with_retry(action, repo_conn, params, timeout, current_delay * 2, max_delay)
     end
   end
 end
