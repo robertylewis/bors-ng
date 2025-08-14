@@ -151,10 +151,57 @@ defmodule BorsNG.Worker.Batcher.Registry do
       crash: inspect(reason, pretty: true, width: 60)
     })
 
+    send_zulip_notification(project_id, pid, reason)
+
     {:noreply, {names, refs}}
   end
 
   def handle_info(_msg, state) do
     {:noreply, state}
   end
+
+  defp send_zulip_notification(project_id, pid, reason) do
+    zulip_url = Confex.fetch_env!(:bors, :zulip_url)
+    bot_email = Confex.fetch_env!(:bors, :zulip_bot_email)
+    bot_api_key = Confex.fetch_env!(:bors, :zulip_bot_api_key)
+    stream_name = Confex.fetch_env!(:bors, :zulip_stream_name)
+    topic = Confex.fetch_env!(:bors, :zulip_topic)
+
+    # Skip if any required config is empty
+    if empty_string?(zulip_url) or empty_string?(bot_email) or empty_string?(bot_api_key) do
+      :ok
+    else
+      message = """
+      🚨 Batch worker crashed!
+
+      Project: `#{project_id}`
+      PID: `#{inspect(pid)}`
+      Reason:
+      ```
+      #{inspect(reason, pretty: true, width: 60)}
+      ```
+      """
+
+      body = URI.encode_query(%{
+        "type" => "stream",
+        "to" => stream_name,
+        "topic" => topic,
+        "content" => message
+      })
+
+      client = Tesla.client([
+        {Tesla.Middleware.BasicAuth, username: bot_email, password: bot_api_key},
+        Tesla.Middleware.FormUrlencoded
+      ], Tesla.Adapter.Hackney)
+
+      # Fire and forget - don't block on response
+      Task.start(fn ->
+        Tesla.post(client, zulip_url, body)
+      end)
+    end
+  end
+
+  defp empty_string?(nil), do: true
+  defp empty_string?(""), do: true
+  defp empty_string?(_), do: false
 end

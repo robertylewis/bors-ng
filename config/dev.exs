@@ -57,3 +57,10 @@ config :bors, :oauth2, BorsNG.GitHub.OAuth2Mock
 config :bors, BorsNG.GitHub.OAuth2,
   client_id: "III",
   client_secret: "YYY"
+
+config :bors, BorsNG.Worker.Batcher.Registry,
+  zulip_url: "",
+  zulip_bot_email: "",
+  zulip_bot_api_key: "",
+  zulip_stream_name: "",
+  zulip_topic: ""
