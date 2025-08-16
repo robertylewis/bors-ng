@@ -819,7 +819,7 @@ defmodule BorsNG.Worker.Batcher do
   # and GitHub allowing a Status-bearing commit to be pushed to master.
   # As a workaround, retry with exponential backoff.
   # This should retry *nine times*, by the way.
-  defp push_with_retry(repo_conn, commit, into_branch, timeout \\ 20) do
+  defp push_with_retry(repo_conn, commit, into_branch, timeout \\ 40) do
     Process.sleep(timeout)
 
     result =
@@ -831,7 +831,7 @@ defmodule BorsNG.Worker.Batcher do
 
     case result do
       {:ok, _} -> result
-      _ when timeout >= 10_240 -> result
+      _ when timeout >= 20_480 -> result
       _ -> push_with_retry(repo_conn, commit, into_branch, timeout * 2)
     end
   end
