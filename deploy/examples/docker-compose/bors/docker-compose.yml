@@ -33,6 +33,11 @@ services:
       GITHUB_WEBHOOK_SECRET: [censored]
       # Make sure the [censored] password here matches the POSTGRES_PASSWORD
       DATABASE_URL: postgres://postgres:[censored]@postgres:5432/bors
+      ZULIP_API_URL: [censored]
+      ZULIP_BOT_EMAIL: [censored]
+      ZULIP_BOT_API_KEY: [censored]
+      ZULIP_CHANNEL_NAME: [censored]
+      ZULIP_TOPIC: [censored]
     depends_on:
       - postgres
   postgres:

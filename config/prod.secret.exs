@@ -36,6 +36,13 @@ config :bors, BorsNG.Endpoint,
   ssl: {:system, :boolean, "FORCE_SSL", true},
   force_ssl: [rewrite_on: [:x_forwarded_proto]]
 
+config :bors, BorsNG.Worker.Batcher.Registry,
+  zulip_api_url: {:system, "ZULIP_API_URL", ""},
+  zulip_bot_email: {:system, "ZULIP_BOT_EMAIL", ""},
+  zulip_bot_api_key: {:system, "ZULIP_BOT_API_KEY", ""},
+  zulip_channel_name: {:system, "ZULIP_CHANNEL_NAME", ""},
+  zulip_topic: {:system, "ZULIP_TOPIC", ""}
+
 config :bors, BorsNG.WebhookParserPlug, webhook_secret: {:system, "GITHUB_WEBHOOK_SECRET"}
 
 config :bors, BorsNG.GitHub.OAuth2,
