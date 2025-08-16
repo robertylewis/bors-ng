@@ -59,7 +59,7 @@ config :bors, BorsNG.GitHub.OAuth2,
   client_secret: "YYY"
 
 config :bors, BorsNG.Worker.Batcher.Registry,
-  zulip_url: "",
+  zulip_api_url: "",
   zulip_bot_email: "",
   zulip_bot_api_key: "",
   zulip_stream_name: "",

@@ -134,6 +134,8 @@ defmodule BorsNG.Worker.Batcher.Registry do
         names
       end
 
+    send_zulip_notification(project_id, pid, reason)
+
     project_id
     |> Batch.all_for_project(:waiting)
     |> Repo.all()
@@ -151,8 +153,6 @@ defmodule BorsNG.Worker.Batcher.Registry do
       crash: inspect(reason, pretty: true, width: 60)
     })
 
-    send_zulip_notification(project_id, pid, reason)
-
     {:noreply, {names, refs}}
   end
 
@@ -161,16 +161,26 @@ defmodule BorsNG.Worker.Batcher.Registry do
   end
 
   defp send_zulip_notification(project_id, pid, reason) do
-    zulip_url = Confex.fetch_env!(:bors, :zulip_url)
+    zulip_api_url = Confex.fetch_env!(:bors, :zulip_api_url)
     bot_email = Confex.fetch_env!(:bors, :zulip_bot_email)
     bot_api_key = Confex.fetch_env!(:bors, :zulip_bot_api_key)
     stream_name = Confex.fetch_env!(:bors, :zulip_stream_name)
     topic = Confex.fetch_env!(:bors, :zulip_topic)
 
     # Skip if any required config is empty
-    if empty_string?(zulip_url) or empty_string?(bot_email) or empty_string?(bot_api_key) do
+    if empty_string?(zulip_api_url) or empty_string?(bot_email) or empty_string?(bot_api_key) do
       :ok
     else
+
+      waiting = project_id
+      |> Batch.all_for_project(:waiting)
+      |> Repo.all()
+
+      running = project_id
+      |> Batch.all_for_project(:running)
+      |> Repo.all()
+      |> Enum.map(&Batch.changeset(&1, %{state: :canceled}))
+
       message = """
       🚨 Batch worker crashed!
 
@@ -183,7 +193,7 @@ defmodule BorsNG.Worker.Batcher.Registry do
       """
 
       body = URI.encode_query(%{
-        "type" => "stream",
+        "type" => "channel",
         "to" => stream_name,
         "topic" => topic,
         "content" => message
@@ -196,12 +206,10 @@ defmodule BorsNG.Worker.Batcher.Registry do
 
       # Fire and forget - don't block on response
       Task.start(fn ->
-        Tesla.post(client, zulip_url, body)
+        Tesla.post(client, zulip_api_url, body)
       end)
     end
   end
-
-  defp empty_string?(nil), do: true
   defp empty_string?(""), do: true
   defp empty_string?(_), do: false
 end
