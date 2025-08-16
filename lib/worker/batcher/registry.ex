@@ -175,14 +175,47 @@ defmodule BorsNG.Worker.Batcher.Registry do
       waiting = project_id
       |> Batch.all_for_project(:waiting)
       |> Repo.all()
+      |> Repo.preload([patches: :patch])
+
+      waiting_message = if length(waiting) > 0 do
+        """
+        The following batches were "Waiting" and will now be deleted:
+        #{waiting
+        |> batch_prs
+        |> Enum.map(fn {id, prs} ->
+          """
+          - Batch #{id}:
+          #{prs |> Enum.map(& "  - ##{&1}") |> Enum.join("\n")}
+          """
+        end)}
+        """
+      else
+        ""
+      end
 
       running = project_id
       |> Batch.all_for_project(:running)
       |> Repo.all()
-      |> Enum.map(&Batch.changeset(&1, %{state: :canceled}))
+      |> Repo.preload([patches: :patch])
+
+      running_message = if length(running) > 0 do
+        """
+        The following batches were "Running" and will now be canceled:
+        #{running
+        |> batch_prs
+        |> Enum.map(fn {id, prs} ->
+          """
+          - Batch #{id}:
+          #{prs |> Enum.map(& "  - ##{&1}") |> Enum.join("\n")}
+          """
+        end)}
+        """
+      else
+        ""
+      end
 
       message = """
-      🚨 Batch worker crashed!
+      🚨 bors batch worker crashed!
 
       Project: `#{project_id}`
       PID: `#{inspect(pid)}`
@@ -190,6 +223,10 @@ defmodule BorsNG.Worker.Batcher.Registry do
       ```
       #{inspect(reason, pretty: true, width: 60)}
       ```
+
+      #{waiting_message}
+
+      #{running_message}
       """
 
       body = URI.encode_query(%{
@@ -212,4 +249,14 @@ defmodule BorsNG.Worker.Batcher.Registry do
   end
   defp empty_string?(""), do: true
   defp empty_string?(_), do: false
+
+  # Get list of patches a set of batches
+  defp batch_prs(batches) do
+    Enum.map(batches, fn batch ->
+      pr_xrefs = batch.patches
+      |> Enum.map(& &1.patch.pr_xref)
+
+      {batch.id, pr_xrefs}
+    end)
+  end
 end
