@@ -161,95 +161,103 @@ defmodule BorsNG.Worker.Batcher.Registry do
   end
 
   defp send_zulip_notification(project_id, pid, reason) do
-    zulip_api_url = Confex.fetch_env!(:bors, :zulip_api_url)
-    bot_email = Confex.fetch_env!(:bors, :zulip_bot_email)
-    bot_api_key = Confex.fetch_env!(:bors, :zulip_bot_api_key)
-    channel_name = Confex.fetch_env!(:bors, :zulip_channel_name)
-    topic = Confex.fetch_env!(:bors, :zulip_topic)
+    try do
+      zulip_api_url = Confex.fetch_env!(:bors, :zulip_api_url)
+      bot_email = Confex.fetch_env!(:bors, :zulip_bot_email)
+      bot_api_key = Confex.fetch_env!(:bors, :zulip_bot_api_key)
+      channel_name = Confex.fetch_env!(:bors, :zulip_channel_name)
+      topic = Confex.fetch_env!(:bors, :zulip_topic)
 
-    # Skip if any required config is empty
-    if empty_string?(zulip_api_url) or empty_string?(bot_email) or empty_string?(bot_api_key) do
-      :ok
-    else
-
-      waiting = project_id
-      |> Batch.all_for_project(:waiting)
-      |> Repo.all()
-      |> Repo.preload([patches: :patch])
-
-      waiting_message = if length(waiting) > 0 do
-        """
-        The following batches were "Waiting" and will now be deleted:
-        #{waiting
-        |> batch_prs
-        |> Enum.map(fn {id, prs} ->
-          """
-          - Batch #{id}:
-          #{prs |> Enum.map(& "  - ##{&1}") |> Enum.join("\n")}
-          """
-        end)}
-        """
+      # Skip if any required config is empty
+      if empty_string?(zulip_api_url) or empty_string?(bot_email) or empty_string?(bot_api_key) do
+        :ok
       else
-        ""
+        message = build_message(project_id, pid, reason)
+
+        body = URI.encode_query(%{
+          "type" => "channel",
+          "to" => channel_name,
+          "topic" => topic,
+          "content" => message
+        })
+
+        client = Tesla.client([
+          {Tesla.Middleware.BasicAuth, username: bot_email, password: bot_api_key},
+          Tesla.Middleware.FormUrlencoded
+        ], Tesla.Adapter.Hackney)
+
+        # Fire and forget - don't block on response
+        Task.start(fn ->
+          Tesla.post(client, zulip_api_url <> "messages", body)
+        end)
       end
-
-      running = project_id
-      |> Batch.all_for_project(:running)
-      |> Repo.all()
-      |> Repo.preload([patches: :patch])
-
-      running_message = if length(running) > 0 do
-        """
-        The following batches were "Running" and will now be canceled:
-        #{running
-        |> batch_prs
-        |> Enum.map(fn {id, prs} ->
-          """
-          - Batch #{id}:
-          #{prs |> Enum.map(& "  - ##{&1}") |> Enum.join("\n")}
-          """
-        end)}
-        """
-      else
-        ""
-      end
-
-      message = """
-      🚨 bors batch worker crashed!
-
-      Project: `#{project_id}`
-      PID: `#{inspect(pid)}`
-      Reason:
-      ```
-      #{inspect(reason, pretty: true, width: 60)}
-      ```
-
-      #{waiting_message}
-
-      #{running_message}
-      """
-
-      body = URI.encode_query(%{
-        "type" => "channel",
-        "to" => channel_name,
-        "topic" => topic,
-        "content" => message
-      })
-
-      client = Tesla.client([
-        {Tesla.Middleware.BasicAuth, username: bot_email, password: bot_api_key},
-        Tesla.Middleware.FormUrlencoded
-      ], Tesla.Adapter.Hackney)
-
-      # Fire and forget - don't block on response
-      Task.start(fn ->
-        Tesla.post(client, zulip_api_url <> "messages", body)
-      end)
+    rescue
+      e ->
+        Logger.error("Failed to send Zulip notification: #{inspect(e)}")
+        :error
     end
   end
   defp empty_string?(""), do: true
   defp empty_string?(_), do: false
 
+  defp build_message(project_id, pid, reason) do
+    waiting = project_id
+    |> Batch.all_for_project(:waiting)
+    |> Repo.all()
+    |> Repo.preload([patches: :patch])
+
+    waiting_message = if length(waiting) > 0 do
+      """
+      The following batches were "Waiting" and will now be deleted:
+      #{waiting
+      |> batch_prs
+      |> Enum.map(fn {id, prs} ->
+        """
+        - Batch #{id}:
+        #{prs |> Enum.map(& "  - ##{&1}") |> Enum.join("\n")}
+        """
+      end)}
+      """
+    else
+      ""
+    end
+
+    running = project_id
+    |> Batch.all_for_project(:running)
+    |> Repo.all()
+    |> Repo.preload([patches: :patch])
+
+    running_message = if length(running) > 0 do
+      """
+      The following batches were "Running" and will now be canceled:
+      #{running
+      |> batch_prs
+      |> Enum.map(fn {id, prs} ->
+        """
+        - Batch #{id}:
+        #{prs |> Enum.map(& "  - ##{&1}") |> Enum.join("\n")}
+        """
+      end)}
+      """
+    else
+      ""
+    end
+
+    """
+    🚨 bors batch worker crashed!
+
+    Project: `#{project_id}`
+    PID: `#{inspect(pid)}`
+    Reason:
+    ```
+    #{inspect(reason, pretty: true, width: 60)}
+    ```
+
+    #{waiting_message}
+
+    #{running_message}
+    """
+  end
   # Get list of patches a set of batches
   defp batch_prs(batches) do
     Enum.map(batches, fn batch ->
