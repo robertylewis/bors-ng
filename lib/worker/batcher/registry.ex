@@ -258,7 +258,8 @@ defmodule BorsNG.Worker.Batcher.Registry do
     #{running_message}
     """
   end
-  # Get list of patches a set of batches
+  # Given a list of batches (with preload [patches: :patch]),
+  # return a list of {batch.id, [list of patches in the batch]}
   defp batch_prs(batches) do
     Enum.map(batches, fn batch ->
       pr_xrefs = batch.patches
