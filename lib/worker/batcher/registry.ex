@@ -164,7 +164,7 @@ defmodule BorsNG.Worker.Batcher.Registry do
     zulip_api_url = Confex.fetch_env!(:bors, :zulip_api_url)
     bot_email = Confex.fetch_env!(:bors, :zulip_bot_email)
     bot_api_key = Confex.fetch_env!(:bors, :zulip_bot_api_key)
-    stream_name = Confex.fetch_env!(:bors, :zulip_stream_name)
+    channel_name = Confex.fetch_env!(:bors, :zulip_channel_name)
     topic = Confex.fetch_env!(:bors, :zulip_topic)
 
     # Skip if any required config is empty
@@ -231,7 +231,7 @@ defmodule BorsNG.Worker.Batcher.Registry do
 
       body = URI.encode_query(%{
         "type" => "channel",
-        "to" => stream_name,
+        "to" => channel_name,
         "topic" => topic,
         "content" => message
       })
@@ -243,7 +243,7 @@ defmodule BorsNG.Worker.Batcher.Registry do
 
       # Fire and forget - don't block on response
       Task.start(fn ->
-        Tesla.post(client, zulip_api_url, body)
+        Tesla.post(client, zulip_api_url <> "messages", body)
       end)
     end
   end

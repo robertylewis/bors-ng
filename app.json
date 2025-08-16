@@ -50,6 +50,21 @@
     "GITHUB_WEBHOOK_SECRET": {
       "description": "GitHub Integration webhook secret"
     },
+    "ZULIP_API_URL": {
+      "description": "API URL for the Zulip server to send crash notifications to, e.g. `https://leanprover.zulipchat.com/api/v1/`"
+    },
+    "ZULIP_BOT_EMAIL": {
+      "description": "Zulip bot email to send crash notifications with, e.g. `bot-name@leanprover.zulipchat.com`"
+    },
+    "ZULIP_BOT_API_KEY": {
+      "description": "API key for the Zulip bot"
+    },
+    "ZULIP_CHANNEL_NAME": {
+      "description": "Zulip channel to send crash notifications to"
+    },
+    "ZULIP_TOPIC": {
+      "description": "Zulip topic to send crash notifications to"
+    },
     "ALLOW_PRIVATE_REPOS": {
       "description": "Allow non-OSS GitHub repos to be added",
       "value": "true"

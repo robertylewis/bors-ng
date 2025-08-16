@@ -52,6 +52,16 @@ env:
   #   value: ""
   # - name: "GITHUB_WEBHOOK_SECRET"
   #   value: ""
+  # - name: "ZULIP_API_URL"
+  #   value: ""
+  # - name: "ZULIP_BOT_EMAIL"
+  #   value: ""
+  # - name: "ZULIP_BOT_API_KEY"
+  #   value: ""
+  # - name: "ZULIP_CHANNEL_NAME"
+  #   value: ""
+  # - name: "ZULIP_TOPIC"
+  #   value: ""
 
 envFrom:
   []

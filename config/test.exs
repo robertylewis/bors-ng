@@ -31,5 +31,5 @@ config :bors, BorsNG.Worker.Batcher.Registry,
   zulip_api_url: "",
   zulip_bot_email: "",
   zulip_bot_api_key: "",
-  zulip_stream_name: "",
+  zulip_channel_name: "",
   zulip_topic: ""

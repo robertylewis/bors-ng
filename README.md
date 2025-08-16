@@ -341,6 +341,11 @@ Or you can do it manually:
         GITHUB_INTEGRATION_ID=<ISS> \
         GITHUB_INTEGRATION_PEM=`base64 -w0 priv.pem` \
         GITHUB_WEBHOOK_SECRET=<SECRET2> \
+        ZULIP_API_URL=<SECRET> \
+        ZULIP_BOT_EMAIL=<SECRET> \
+        ZULIP_BOT_API_KEY=<SECRET> \
+        ZULIP_CHANNEL_NAME=<SECRET> \
+        ZULIP_TOPIC=<SECRET> \
         [BORS_LOG_LEVEL=<debug|info|warn|...>]
     $ git push heroku master
     $ heroku run POOL_SIZE=1 mix ecto.migrate
@@ -390,6 +395,11 @@ All the same recommendations apply, with some extra notes:
           -e GITHUB_INTEGRATION_ID=<secret> \
           -e GITHUB_INTEGRATION_PEM=<secret> \
           -e GITHUB_WEBHOOK_SECRET=<secret> \
+          -e ZULIP_API_URL=<secret> \
+          -e ZULIP_BOT_EMAIL=<secret> \
+          -e ZULIP_BOT_API_KEY=<secret> \
+          -e ZULIP_CHANNEL_NAME=<secret> \
+          -e ZULIP_TOPIC=<secret> \
           -e DATABASE_URL="postgresql://postgres:<secret>@db:5432/bors_ng" \
           -e DATABASE_USE_SSL=false \
           -e DATABASE_AUTO_MIGRATE=true \

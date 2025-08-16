@@ -57,6 +57,13 @@ locals {
     integration_pem_b64 = base64encode("")
     webhook_secret = ""
   }
+  bors_zulip = {
+    api_url = ""
+    bot_email = ""
+    bot_api_key = ""
+    channel_name = ""
+    topic = ""
+  }
 
   ingress_class = ""
 }
@@ -88,6 +95,11 @@ resource kubernetes_secret bors {
     "GITHUB_INTEGRATION_ID"  = local.bors_github.integration_id
     "GITHUB_INTEGRATION_PEM" = local.bors_github.integration_pem_b64
     "GITHUB_WEBHOOK_SECRET"  = local.bors_github.webhook_secret
+    "ZULIP_API_URL"          = local.bors_zulip.api_url
+    "ZULIP_BOT_EMAIL"        = local.bors_zulip.bot_email
+    "ZULIP_BOT_API_KEY"      = local.bors_zulip.bot_api_key
+    "ZULIP_CHANNEL_NAME"     = local.bors_zulip.channel_name
+    "ZULIP_TOPIC"            = local.bors_zulip.topic
   }
 }
 
