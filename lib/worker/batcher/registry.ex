@@ -134,7 +134,15 @@ defmodule BorsNG.Worker.Batcher.Registry do
         names
       end
 
-    send_zulip_notification(project_id, pid, reason)
+    crash_message = try do
+      build_message(project_id, pid, reason)
+    rescue
+      e ->
+        Logger.error("Failed to build crash message: #{inspect(e)}")
+        inspect(reason, pretty: true, width: 60)
+    end
+
+    send_zulip_notification(crash_message)
 
     project_id
     |> Batch.all_for_project(:waiting)
@@ -150,7 +158,7 @@ defmodule BorsNG.Worker.Batcher.Registry do
     Repo.insert(%Crash{
       project_id: project_id,
       component: "batch",
-      crash: inspect(reason, pretty: true, width: 60)
+      crash: crash_message
     })
 
     {:noreply, {names, refs}}
@@ -160,7 +168,7 @@ defmodule BorsNG.Worker.Batcher.Registry do
     {:noreply, state}
   end
 
-  defp send_zulip_notification(project_id, pid, reason) do
+  defp send_zulip_notification(crash_message) do
     try do
       zulip_api_url = Confex.fetch_env!(:bors, :zulip_api_url)
       bot_email = Confex.fetch_env!(:bors, :zulip_bot_email)
@@ -172,7 +180,7 @@ defmodule BorsNG.Worker.Batcher.Registry do
       if empty_string?(zulip_api_url) or empty_string?(bot_email) or empty_string?(bot_api_key) do
         :ok
       else
-        message = build_message(project_id, pid, reason)
+        message = "🚨 bors batch worker crashed!\n\n" <> crash_message
 
         body = URI.encode_query(%{
           "type" => "channel",
@@ -244,10 +252,8 @@ defmodule BorsNG.Worker.Batcher.Registry do
     end
 
     """
-    🚨 bors batch worker crashed!
-
     Project: `#{project_id}`
-    PID: `#{inspect(pid)}`
+    PID: `#{pid}`
     Reason:
     ```
     #{inspect(reason, pretty: true, width: 60)}
