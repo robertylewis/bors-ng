@@ -12,6 +12,7 @@ defmodule BorsNG.Database.Context.Permission do
     Repo.all(
       from(u in User,
         join: l in LinkMemberProject,
+        on: true,
         where: l.project_id == ^project_id,
         where: u.id == l.user_id
       )
@@ -22,6 +23,7 @@ defmodule BorsNG.Database.Context.Permission do
     Repo.all(
       from(u in User,
         join: l in LinkUserProject,
+        on: true,
         where: l.project_id == ^project_id,
         where: u.id == l.user_id
       )
