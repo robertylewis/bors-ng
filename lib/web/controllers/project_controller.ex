@@ -110,6 +110,7 @@ defmodule BorsNG.ProjectController do
     patch_users_map =
       from(p in Patch,
         where: p.project_id == ^project.id,
+        where: p.open,
         left_join: upd in UserPatchDelegation, on: upd.patch_id == p.id,
         left_join: u in User, on: u.id == upd.user_id,
         select: {p.id, u}
