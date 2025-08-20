@@ -22,6 +22,7 @@ defmodule BorsNG.ProjectController do
   alias BorsNG.Database.Crash
   alias BorsNG.Database.Patch
   alias BorsNG.Database.User
+  alias BorsNG.Database.UserPatchDelegation
   alias BorsNG.GitHub
   alias BorsNG.Worker.Syncer
 
@@ -105,6 +106,21 @@ defmodule BorsNG.ProjectController do
       |> Patch.all_for_project(:awaiting_review)
       |> Repo.all()
 
+    # Single query to get all patch-delegated user relationships for this project
+    patch_users_map =
+      from(p in Patch,
+        where: p.project_id == ^project.id,
+        left_join: upd in UserPatchDelegation, on: upd.patch_id == p.id,
+        left_join: u in User, on: u.id == upd.user_id,
+        select: {p.id, u}
+      )
+      |> Repo.all()
+      |> Enum.reject(fn {_patch_id, user} -> is_nil(user) end)  # Remove patches with no delegated users
+      |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+
+    {delegated_patches, undelegated_patches} = unbatched_patches
+      |> Enum.split_with(&Map.get(patch_users_map, &1))
+
     is_synchronizing =
       match?(
         [{_, _}],
@@ -115,7 +131,9 @@ defmodule BorsNG.ProjectController do
       project: project,
       batches: batches,
       is_synchronizing: is_synchronizing,
-      unbatched_patches: unbatched_patches,
+      patch_users_map: patch_users_map,
+      delegated_patches: delegated_patches,
+      undelegated_patches: undelegated_patches,
       mode: mode
     )
   end
