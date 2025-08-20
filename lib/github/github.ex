@@ -434,20 +434,27 @@ defmodule BorsNG.GitHub do
   defp do_call_with_retry(action, repo_conn, params, timeout, current_delay, max_delay) do
     result = GenServer.call(BorsNG.GitHub, {action, repo_conn, params}, timeout)
 
-    case result do
-      :ok ->
-        :ok
+    if Application.get_env(:bors, :is_test) do
+      result
+    else
+      case result do
+        :ok ->
+          Logger.info("call_with_retry(#{action}): succeeded when current_delay was #{current_delay}")
+          :ok
 
-      {:ok, _} = success ->
-        success
+        {:ok, _} = success ->
+          Logger.info("call_with_retry(#{action}): succeeded when current_delay was #{current_delay}")
+          success
 
-      _ when current_delay > max_delay ->
-        # Final attempt - return whatever we get
-        GenServer.call(BorsNG.GitHub, {action, repo_conn, params}, timeout)
+        _ when current_delay > max_delay ->
+          # Final attempt - return whatever we get
+          Logger.warning("call_with_retry(#{action}): final attempt when current_delay was #{current_delay}")
+          GenServer.call(BorsNG.GitHub, {action, repo_conn, params}, timeout)
 
-      _ ->
-        Process.sleep(current_delay)
-        do_call_with_retry(action, repo_conn, params, timeout, current_delay * 2, max_delay)
+        _ ->
+          Process.sleep(current_delay)
+          do_call_with_retry(action, repo_conn, params, timeout, current_delay * 2, max_delay)
+      end
     end
   end
 end
