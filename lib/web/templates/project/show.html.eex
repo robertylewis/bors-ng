@@ -17,7 +17,7 @@
 
 <main role=main><div class=wrapper>
 
-<%= if empty?(@unbatched_patches) and empty?(@batches) do %>
+<%= if empty?(@undelegated_patches) and empty?(@delegated_patches) and empty?(@batches) do %>
   Nothing to see here
 <% else %>
 <table class="table">
@@ -30,7 +30,7 @@
         <span class=header-count><%= Enum.count(batch.patches) %></span>
       </h2>
     </td></tr>
-    <tr role=row><th>#</th><th aria-label=Mergeable title=Mergeable>M<span class=hide-on-narrow>ergeable</span></th><th>Title</th><th class=priority-column>Priority</th><th class=hide-on-super-narrow>Commit</th></tr>
+    <tr role=row><th>#</th><th aria-label=Mergeable title=Mergeable>M<span class=hide-on-narrow>ergeable</span></th><th>Title</th><th aria-label="Delegated to" title="Delegated to">D<span class=hide-on-narrow>elegated to</span></th><th class=priority-column>Priority</th><th class=hide-on-super-narrow>Commit</th></tr>
   </thead>
   <tbody>
   <%= for patch <- batch.patches do %>
@@ -53,6 +53,11 @@
         <a href="<%= Confex.fetch_env!(:bors, :html_github_root) %>/<%= @project.name %>/pull/<%= patch.pr_xref %>">
           <%= patch.title %>
         </a>
+      </td>
+      <td class=delegated-cell>
+        <%= Map.get(@patch_users_map, patch.id, [])
+          |> Enum.map(& &1.login)
+          |> Enum.join(", ") %>
       </td>
       <td class=priority-cell>
         <%= patch.priority %>
@@ -121,7 +126,7 @@
         <span class=header-count><%= Enum.count(@undelegated_patches) %></span>
       </h2>
     </td></tr>
-    <tr role=row><th>#</th><th aria-label=Mergeable title=Mergeable>M<span class=hide-on-narrow>ergeable</span></th><th>Title</th><th aria-label="Delegated to" title="Delegated to">D<span class=hide-on-narrow>elegated to</span></th><th class=priority-column>Priority</th><th class=hide-on-super-narrow>Commit</th></tr>
+    <tr role=row><th>#</th><th aria-label=Mergeable title=Mergeable>M<span class=hide-on-narrow>ergeable</span></th><th>Title</th><th class=priority-column>Priority</th><th class=hide-on-super-narrow>Commit</th></tr>
   </thead>
   <tbody>
   <%= for patch <- @undelegated_patches do %>
@@ -144,11 +149,6 @@
         <a href="<%= Confex.fetch_env!(:bors, :html_github_root) %>/<%= @project.name %>/pull/<%= patch.pr_xref %>">
           <%= patch.title %>
         </a>
-      </td>
-      <td class=delegated-cell>
-        <%= Map.get(@patch_users_map, patch.id, [])
-          |> Enum.map(& &1.login)
-          |> Enum.join(", ") %>
       </td>
       <td class=priority-cell>
         <%= patch.priority %>
