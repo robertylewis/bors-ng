@@ -820,8 +820,6 @@ defmodule BorsNG.Worker.Batcher do
   # As a workaround, retry with exponential backoff.
   # This should retry *nine times*, by the way.
   defp push_with_retry(repo_conn, commit, into_branch, timeout \\ 40) do
-    Process.sleep(timeout)
-
     result =
       GitHub.push(
         repo_conn,
@@ -829,10 +827,20 @@ defmodule BorsNG.Worker.Batcher do
         into_branch
       )
 
-    case result do
-      {:ok, _} -> result
-      _ when timeout >= 20_480 -> result
-      _ -> push_with_retry(repo_conn, commit, into_branch, timeout * 2)
+    if Application.get_env(:bors, :is_test) do
+      result
+    else
+      case result do
+        {:ok, _} ->
+          Logger.info("push_with_retry: succeeded when timeout was #{timeout}")
+          result
+        _ when timeout >= 20_480 ->
+          Logger.warning("push_with_retry: failed when timeout was #{timeout}")
+          result
+        _ ->
+          Process.sleep(timeout)
+          push_with_retry(repo_conn, commit, into_branch, timeout * 2)
+      end
     end
   end
 
