@@ -493,9 +493,9 @@ defmodule BorsNG.Worker.Batcher do
 
         res ->
           # Commit changed or first call
-          Process.put(:last_commit, res.commit)
-          # Note that we reset this to :nil if the batch fails;
+          # Note that we reset the last_commit to :nil if the batch fails;
           # see the :error case of complete_batch/3
+          Process.put(:last_commit, res.commit)
           Logger.info("get_base: commit changed: #{inspect(last_commit)}. current_delay was #{current_delay}.")
           res
       end
