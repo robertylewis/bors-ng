@@ -390,11 +390,7 @@ defmodule BorsNG.Worker.Batcher do
 
     stmp = "#{project.staging_branch}.tmp"
 
-    base =
-      GitHub.get_branch!(
-        repo_conn,
-        batch.into_branch
-      )
+    base = get_base(repo_conn, batch.into_branch)
 
     tbase = %{
       tree: base.tree,
@@ -462,6 +458,50 @@ defmodule BorsNG.Worker.Batcher do
     Project.ping!(batch.project_id)
     status
   end
+
+  # Private function to handle retry logic with exponential backoff
+  defp get_base(repo_conn, into_branch) do
+    do_get_base(repo_conn, into_branch, 1_000, 5_000)
+  end
+
+  defp do_get_base(repo_conn, into_branch, current_delay, max_delay) do
+    # Non fast forward errors sometimes occur because GitHub returns a stale commit
+    # when we fetch the target branch. Usually, this is because the last batch succeeded,
+    # but GitHub has not propagated that info to all its APIs yet,
+    # so the stale commit is the one the last successful batch was pushed on top of.
+    # Therefore we cache the last commit we received from GitHub in the process dictionary below,
+    # and then if the next time we call the GitHub branch API we receive the same commit,
+    # we retry the API call with an exponentially increasing delay, until max_delay is exceeded.
+    last_commit = Process.get(:last_commit)
+    result = GitHub.get_branch!(
+        repo_conn,
+        into_branch
+    )
+    if Application.get_env(:bors, :is_test) do
+      Process.put(:last_commit, result.commit)
+      result
+    else
+      case result do
+        %{commit: ^last_commit} when current_delay <= max_delay ->
+          Process.sleep(current_delay)
+          do_get_base(repo_conn, into_branch, current_delay * 2, max_delay)
+
+        %{commit: ^last_commit} ->
+          # Exceeded max delay but commit unchanged
+          Logger.warn("get_base: exceeded max delay but commit unchanged: #{inspect(last_commit)}")
+          result
+
+        res ->
+          # Commit changed or first call
+          # Note that we reset the last_commit to :nil if the batch fails;
+          # see the :error case of complete_batch/3
+          Process.put(:last_commit, res.commit)
+          Logger.info("get_base: commit changed: #{inspect(last_commit)}. current_delay was #{current_delay}.")
+          res
+      end
+    end
+  end
+
 
   defp start_waiting_merged_batch(_batch, [], _, _) do
     {:canceled, nil}
@@ -806,6 +846,10 @@ defmodule BorsNG.Worker.Batcher do
     patches = Enum.map(patch_links, & &1.patch)
     state = Divider.split_batch(patch_links, batch)
 
+    # The batch failed, so it's OK to push the next batch on top of the same commit we saw
+    # see do_get_base/4
+    Process.put(:last_commit, :nil)
+
     if state == :retrying do
       poll_after_delay(project)
     end
@@ -820,8 +864,6 @@ defmodule BorsNG.Worker.Batcher do
   # As a workaround, retry with exponential backoff.
   # This should retry *nine times*, by the way.
   defp push_with_retry(repo_conn, commit, into_branch, timeout \\ 40) do
-    Process.sleep(timeout)
-
     result =
       GitHub.push(
         repo_conn,
@@ -829,10 +871,20 @@ defmodule BorsNG.Worker.Batcher do
         into_branch
       )
 
-    case result do
-      {:ok, _} -> result
-      _ when timeout >= 20_480 -> result
-      _ -> push_with_retry(repo_conn, commit, into_branch, timeout * 2)
+    if Application.get_env(:bors, :is_test) do
+      result
+    else
+      case result do
+        {:ok, _} ->
+          Logger.info("push_with_retry: succeeded when timeout was #{timeout}")
+          result
+        _ when timeout >= 20_480 ->
+          Logger.warning("push_with_retry: failed when timeout was #{timeout}")
+          result
+        _ ->
+          Process.sleep(timeout)
+          push_with_retry(repo_conn, commit, into_branch, timeout * 2)
+      end
     end
   end
 
