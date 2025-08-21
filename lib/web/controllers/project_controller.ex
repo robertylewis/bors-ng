@@ -120,7 +120,7 @@ defmodule BorsNG.ProjectController do
       |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
 
     {delegated_patches, undelegated_patches} = unbatched_patches
-      |> Enum.split_with(&Map.get(patch_users_map, &1))
+      |> Enum.split_with(&Map.get(patch_users_map, &1.id))
 
     is_synchronizing =
       match?(
