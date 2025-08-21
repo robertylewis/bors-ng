@@ -138,11 +138,12 @@ defmodule BorsNG.Worker.Batcher.Registry do
       build_message(project_id, pid, reason)
     rescue
       e ->
-        Logger.error("Failed to build crash message: #{inspect(e)}")
-        inspect(reason, pretty: true, width: 60)
+        e_message = "Failed to build crash message:\n#{inspect(e, pretty: true, width: 60)}"
+        Logger.error(e_message)
+        inspect("#{e_message}\n\nCrash reason:\n#{reason}", pretty: true, width: 60)
     end
 
-    send_zulip_notification(crash_message)
+    send_zulip_notification("🚨 bors batch worker crashed!\n\n" <> crash_message)
 
     project_id
     |> Batch.all_for_project(:waiting)
@@ -168,7 +169,7 @@ defmodule BorsNG.Worker.Batcher.Registry do
     {:noreply, state}
   end
 
-  defp send_zulip_notification(crash_message) do
+  defp send_zulip_notification(message) do
     try do
       zulip_api_url = Confex.fetch_env!(:bors, :zulip_api_url)
       bot_email = Confex.fetch_env!(:bors, :zulip_bot_email)
@@ -180,24 +181,19 @@ defmodule BorsNG.Worker.Batcher.Registry do
       if empty_string?(zulip_api_url) or empty_string?(bot_email) or empty_string?(bot_api_key) do
         :ok
       else
-        message = "🚨 bors batch worker crashed!\n\n" <> crash_message
-
-        body = URI.encode_query(%{
+        body = %{
           "type" => "channel",
           "to" => channel_name,
           "topic" => topic,
           "content" => message
-        })
+        }
 
         client = Tesla.client([
           {Tesla.Middleware.BasicAuth, username: bot_email, password: bot_api_key},
           Tesla.Middleware.FormUrlencoded
         ], Tesla.Adapter.Hackney)
 
-        # Fire and forget - don't block on response
-        Task.start(fn ->
-          Tesla.post(client, zulip_api_url <> "messages", body)
-        end)
+        Tesla.post(client, zulip_api_url <> "messages", body)
       end
     rescue
       e ->
@@ -212,7 +208,7 @@ defmodule BorsNG.Worker.Batcher.Registry do
     waiting = project_id
     |> Batch.all_for_project(:waiting)
     |> Repo.all()
-    |> Repo.preload([patches: :patch])
+    |> Repo.preload([:patches])
 
     waiting_message = if length(waiting) > 0 do
       """
@@ -233,7 +229,7 @@ defmodule BorsNG.Worker.Batcher.Registry do
     running = project_id
     |> Batch.all_for_project(:running)
     |> Repo.all()
-    |> Repo.preload([patches: :patch])
+    |> Repo.preload([:patches])
 
     running_message = if length(running) > 0 do
       """
@@ -264,12 +260,12 @@ defmodule BorsNG.Worker.Batcher.Registry do
     #{running_message}
     """
   end
-  # Given a list of batches (with preload [patches: :patch]),
+  # Given a list of batches (with preload [:patches]),
   # return a list of {batch.id, [list of patches in the batch]}
   defp batch_prs(batches) do
     Enum.map(batches, fn batch ->
       pr_xrefs = batch.patches
-      |> Enum.map(& &1.patch.pr_xref)
+      |> Enum.map(& &1.pr_xref)
 
       {batch.id, pr_xrefs}
     end)
