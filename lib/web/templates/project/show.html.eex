@@ -17,7 +17,7 @@
 
 <main role=main><div class=wrapper>
 
-<%= if empty?(@unbatched_patches) and empty?(@batches) do %>
+<%= if empty?(@undelegated_patches) and empty?(@delegated_patches) and empty?(@batches) do %>
   Nothing to see here
 <% else %>
 <table class="table">
@@ -30,7 +30,7 @@
         <span class=header-count><%= Enum.count(batch.patches) %></span>
       </h2>
     </td></tr>
-    <tr role=row><th>#</th><th aria-label=Mergeable title=Mergeable>M<span class=hide-on-narrow>ergeable</span></th><th>Title</th><th class=priority-column>Priority</th><th class=hide-on-super-narrow>Commit</th></tr>
+    <tr role=row><th>#</th><th aria-label=Mergeable title=Mergeable>M<span class=hide-on-narrow>ergeable</span></th><th>Title</th><th aria-label="Delegated to" title="Delegated to">D<span class=hide-on-narrow>elegated to</span></th><th class=priority-column>Priority</th><th class=hide-on-super-narrow>Commit</th></tr>
   </thead>
   <tbody>
   <%= for patch <- batch.patches do %>
@@ -54,6 +54,11 @@
           <%= patch.title %>
         </a>
       </td>
+      <td class=delegated-cell>
+        <%= Map.get(@patch_users_map, patch.id, [])
+          |> Enum.map(& &1.login)
+          |> Enum.join(", ") %>
+      </td>
       <td class=priority-cell>
         <%= patch.priority %>
         <%= if patch.is_single do %>S<% end %>
@@ -65,18 +70,66 @@
   <% end %>
   </tbody>
 <% end %>
-<%= if @unbatched_patches != [] do %>
+<%= if @delegated_patches != [] do %>
+  <thead>
+    <tr role=heading><td aria-role=presentation colspan=5>
+      <h2 class=header>
+        Delegated
+        <span class=header-count><%= Enum.count(@delegated_patches) %></span>
+      </h2>
+    </td></tr>
+    <tr role=row><th>#</th><th aria-label=Mergeable title=Mergeable>M<span class=hide-on-narrow>ergeable</span></th><th>Title</th><th aria-label="Delegated to" title="Delegated to">D<span class=hide-on-narrow>elegated to</span></th><th class=priority-column>Priority</th><th class=hide-on-super-narrow>Commit</th></tr>
+  </thead>
+  <tbody>
+  <%= for patch <- @delegated_patches do %>
+    <tr role="row" id="prrow-<%= patch.pr_xref %>">
+      <td class=expand-row>
+        <%= patch.pr_xref %>
+      </td>
+      <td class=span--<%= if patch.is_mergeable do %>ok<% else %>error<% end %> aria-label="<%= if patch.is_mergeable do %><%= if patch.is_draft do %>Draft<% else %>Yes<% end %><% else %>No<% end %>" title="<%= if patch.is_mergeable do %><%= if patch.is_draft do %>Draft<% else %>Yes<% end %><% else %>No<% end %>">
+        <%= if patch.is_mergeable do %>
+            <%= if patch.is_draft do %>
+            ✎<span class=hide-on-narrow> Draft</span>
+            <% else %>
+            ✓<span class=hide-on-narrow> Yes</span>
+            <% end %>
+        <% else %>
+            ⚠<span class=hide-on-narrow> No</span>
+        <% end %>
+      </td>
+      <td class="fill-link">
+        <a href="<%= Confex.fetch_env!(:bors, :html_github_root) %>/<%= @project.name %>/pull/<%= patch.pr_xref %>">
+          <%= patch.title %>
+        </a>
+      </td>
+      <td class=delegated-cell>
+        <%= Map.get(@patch_users_map, patch.id, [])
+          |> Enum.map(& &1.login)
+          |> Enum.join(", ") %>
+      </td>
+      <td class=priority-cell>
+        <%= patch.priority %>
+        <%= if patch.is_single do %>S<% end %>
+      </td>
+      <td class=hide-on-super-narrow>
+        <code><%= truncate_commit(patch.commit) %></code>
+      </td>
+    </tr>
+  <% end %>
+  </tbody>
+<% end %>
+<%= if @undelegated_patches != [] do %>
   <thead>
     <tr role=heading><td aria-role=presentation colspan=5>
       <h2 class=header>
         Awaiting review
-        <span class=header-count><%= Enum.count(@unbatched_patches) %></span>
+        <span class=header-count><%= Enum.count(@undelegated_patches) %></span>
       </h2>
     </td></tr>
     <tr role=row><th>#</th><th aria-label=Mergeable title=Mergeable>M<span class=hide-on-narrow>ergeable</span></th><th>Title</th><th class=priority-column>Priority</th><th class=hide-on-super-narrow>Commit</th></tr>
   </thead>
   <tbody>
-  <%= for patch <- @unbatched_patches do %>
+  <%= for patch <- @undelegated_patches do %>
     <tr role="row" id="prrow-<%= patch.pr_xref %>">
       <td class=expand-row>
         <%= patch.pr_xref %>
