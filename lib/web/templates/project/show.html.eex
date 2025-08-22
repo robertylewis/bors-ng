@@ -23,7 +23,7 @@
 <table class="table">
 <%= for batch <- @batches do %>
   <thead>
-    <tr role=heading><td aria-role=presentation colspan=5>
+    <tr role=heading><td aria-role=presentation colspan=6>
       <a href="../batches/<%= batch.id %>">Batch <%= batch.id %></a>
       <h2 class=header>
         <%= stringify_state batch.state %>
@@ -72,7 +72,7 @@
 <% end %>
 <%= if @delegated_patches != [] do %>
   <thead>
-    <tr role=heading><td aria-role=presentation colspan=5>
+    <tr role=heading><td aria-role=presentation colspan=6>
       <h2 class=header>
         Delegated
         <span class=header-count><%= Enum.count(@delegated_patches) %></span>
@@ -118,6 +118,8 @@
   <% end %>
   </tbody>
 <% end %>
+</table>
+<table class="table">
 <%= if @undelegated_patches != [] do %>
   <thead>
     <tr role=heading><td aria-role=presentation colspan=5>
