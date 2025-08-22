@@ -1,9 +1,8 @@
 defmodule BorsNG.Database.LinkMemberProject do
   @moduledoc """
-  The connection between a project and its reviewers.
+  The connection between a project and its members.
 
-  People with this link can bring up the dashboard page and settings
-  for a project, and can r+ a commit. Otherwise, they can't.
+  People with this link can the run try and retry and cancel commands.
   """
 
   use BorsNG.Database.Model
