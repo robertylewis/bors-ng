@@ -153,8 +153,10 @@ defmodule BorsNG.Command do
   def parse_cmd("merge" <> _), do: [:activate]
   def parse_cmd("delegate+" <> _), do: [:delegate]
   def parse_cmd("delegate=" <> arguments), do: parse_delegation_args(arguments)
+  def parse_cmd("delegate-" <> _), do: [:undelegate]
   def parse_cmd("d+" <> _), do: [:delegate]
   def parse_cmd("d=" <> arguments), do: parse_delegation_args(arguments)
+  def parse_cmd("d-" <> _), do: [:undelegate]
   def parse_cmd("+r" <> _), do: [{:autocorrect, "r+"}]
   def parse_cmd("-r" <> _), do: [{:autocorrect, "r-"}]
   def parse_cmd("+"), do: [{:autocorrect, "r+"}]
@@ -510,6 +512,17 @@ defmodule BorsNG.Command do
     delegate_to(c, delegatee)
   end
 
+  def run(c, :undelegate) do
+    Permission.undelegate_patch(c.patch.id)
+
+    c.project.repo_xref
+    |> Project.installation_connection(Repo)
+    |> GitHub.post_comment!(
+      c.pr_xref,
+      ~s{:no_entry_sign: All delegations have been removed from this PR. To re-add a delegation, reply with `bors d+` (to delegate the PR author) or `bors d=list,of,github,usernames` to delegate multiple users.}
+    )
+  end
+
   def run(c, :retry) do
     {commenter, cmd} = Logging.most_recent_cmd(c.patch)
     run(%{c | commenter: commenter}, cmd)
@@ -525,6 +538,8 @@ defmodule BorsNG.Command do
   end
 
   def delegate_to(c, delegatee) do
+    # Note that a user can be delegated multiple times
+    # TODO: fix at the database level?
     Permission.delegate(delegatee, c.patch)
 
     c.project.repo_xref
