@@ -1,9 +1,9 @@
 defmodule BorsNG.Database.Context.Permission do
   @moduledoc """
-  The connection between a project and its reviewers.
-
-  People with this link can bring up the dashboard page and settings
-  for a project, and can r+ a commit. Otherwise, they can't.
+  Helper commands for user permissions:
+  - reviewers
+  - members
+  - delegation
   """
 
   use BorsNG.Database.Context
