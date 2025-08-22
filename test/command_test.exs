@@ -406,6 +406,102 @@ defmodule BorsNG.CommandTest do
     ]
   end
 
+  test_with_params "delegate- removes all delegations", %{proj: proj}, fn undelegate_command ->
+    pr = %BorsNG.GitHub.Pr{
+      number: 1,
+      title: "Test",
+      body: "Mess",
+      state: :open,
+      base_ref: "master",
+      head_sha: "00000001",
+      head_ref: "update",
+      base_repo_id: 13,
+      head_repo_id: 13,
+      user: %{
+        id: 2,
+        login: "pr_author"
+      }
+    }
+
+    GitHub.ServerMock.put_state(%{
+      {{:installation, 91}, 14} => %{
+        branches: %{},
+        comments: %{1 => ["bors d+"], 2 => ["bors d=reviewer"], 3 => ["bors #{undelegate_command}"]},
+        statuses: %{},
+        pulls: %{
+          1 => pr
+        }
+      }
+    })
+
+    {:ok, user} =
+      Repo.insert(%BorsNG.Database.User{
+        user_xref: 1,
+        is_admin: true,
+        login: "repo_owner"
+      })
+
+    {:ok, _} =
+      Repo.insert(%BorsNG.Database.User{
+        user_xref: 3,
+        is_admin: false,
+        login: "reviewer"
+      })
+
+    {:ok, _} =
+      Repo.insert(%BorsNG.Database.Patch{
+        project_id: proj.id,
+        pr_xref: 1,
+        commit: "N",
+        into_branch: "master"
+      })
+
+    Repo.insert(%BorsNG.Database.LinkUserProject{
+      user_id: user.id,
+      project_id: proj.id
+    })
+
+    c1 = %Command{
+      project: proj,
+      commenter: user,
+      comment: "bors d+",
+      pr_xref: 1
+    }
+
+    Command.run(c1)
+
+    c2 = %Command{
+      project: proj,
+      commenter: user,
+      comment: "bors d=reviewer",
+      pr_xref: 1
+    }
+
+    Command.run(c2)
+
+    [p1, p2] = Repo.all(BorsNG.Database.UserPatchDelegation)
+    p1 = Repo.preload(p1, :user)
+    assert p1.user.user_xref == 2
+    p2 = Repo.preload(p2, :user)
+    assert p2.user.user_xref == 3
+
+    c3 = %Command{
+      project: proj,
+      commenter: user,
+      comment: "bors #{undelegate_command}",
+      pr_xref: 1
+    }
+
+    Command.run(c3)
+
+    [] = Repo.all(BorsNG.Database.UserPatchDelegation)
+  end do
+    [
+      {"delegate-"},
+      {"d-"}
+    ]
+  end
+
   test "retry fails for non-members", %{proj: proj} do
     pr = %BorsNG.GitHub.Pr{
       number: 1,
