@@ -66,7 +66,7 @@
 
 <section class=split-item>
 <h2 class=header>Members</h2>
-<p>permission to run the <code>try</code> and <code>retry</code> commands</p>
+<p>permission to run the <code>try</code>, <code>retry</code> and <code>cancel</code> commands</p>
 <%= form_for @update_member_settings, project_path(@conn, :update_member_settings, @project), [as: :project], fn f -> %>
   <label for=project_auto_member_required_perm>Synchronize</label>
   <div class=toolbar>
