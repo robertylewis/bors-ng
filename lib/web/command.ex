@@ -151,11 +151,15 @@ defmodule BorsNG.Command do
   def parse_cmd("merge p=" <> rest), do: parse_priority(rest) ++ [:activate]
   def parse_cmd("merge=" <> arguments), do: parse_activation_args(arguments)
   def parse_cmd("merge" <> _), do: [:activate]
+  def parse_cmd("delegate=" <> arguments), do: parse_delegation_args(arguments, :delegate_to)
+  def parse_cmd("delegate+=" <> arguments), do: parse_delegation_args(arguments, :delegate_to)
   def parse_cmd("delegate+" <> _), do: [:delegate]
-  def parse_cmd("delegate=" <> arguments), do: parse_delegation_args(arguments)
+  def parse_cmd("delegate-=" <> arguments), do: parse_delegation_args(arguments, :undelegate_to)
   def parse_cmd("delegate-" <> _), do: [:undelegate]
+  def parse_cmd("d=" <> arguments), do: parse_delegation_args(arguments, :delegate_to)
+  def parse_cmd("d+=" <> arguments), do: parse_delegation_args(arguments, :delegate_to)
   def parse_cmd("d+" <> _), do: [:delegate]
-  def parse_cmd("d=" <> arguments), do: parse_delegation_args(arguments)
+  def parse_cmd("d-=" <> arguments), do: parse_delegation_args(arguments, :undelegate_to)
   def parse_cmd("d-" <> _), do: [:undelegate]
   def parse_cmd("+r" <> _), do: [{:autocorrect, "r+"}]
   def parse_cmd("-r" <> _), do: [{:autocorrect, "r-"}]
@@ -257,22 +261,22 @@ defmodule BorsNG.Command do
     * It's split on comma.
 
       iex> alias BorsNG.Command
-      iex> Command.parse_delegation_args(" this, is, whitespace heavy")
+      iex> Command.parse_delegation_args(" this, is, whitespace heavy", :delegate_to)
       [
         {:delegate_to, "this"},
         {:delegate_to, "is"},
         {:delegate_to, "whitespace"}]
-      iex> Command.parse_delegation_args(" @this, @has, @ats")
-      [{:delegate_to, "this"}, {:delegate_to, "has"}, {:delegate_to, "ats"}]
-      iex> Command.parse_delegation_args(" trimmed ")
+      iex> Command.parse_delegation_args(" @this, @has, @ats", :undelegate_to)
+      [{:undelegate_to, "this"}, {:undelegate_to, "has"}, {:undelegate_to, "ats"}]
+      iex> Command.parse_delegation_args(" trimmed ", :delegate_to)
       [{:delegate_to, "trimmed"}]
-      iex> Command.parse_delegation_args("what\never")
-      [{:delegate_to, "what"}]
-      iex> Command.parse_delegation_args("somebody")
+      iex> Command.parse_delegation_args("what\never", :undelegate_to)
+      [{:undelegate_to, "what"}]
+      iex> Command.parse_delegation_args("somebody", :delegate_to)
       [{:delegate_to, "somebody"}]
-      iex> Command.parse_delegation_args("")
+      iex> Command.parse_delegation_args("", :undelegate_to)
       []
-      iex> Command.parse_delegation_args("  ")
+      iex> Command.parse_delegation_args("  ", :delegate_to)
       []
   """
   def parse_delegation_args([], "", " " <> rest) do
@@ -307,13 +311,13 @@ defmodule BorsNG.Command do
     parse_delegation_args(l, <<nick::binary, c::8>>, rest)
   end
 
-  def parse_delegation_args(arguments) do
+  def parse_delegation_args(arguments, action) do
     []
     |> parse_delegation_args("", arguments)
     |> :lists.reverse()
     |> Enum.flat_map(fn
       "" -> []
-      nick -> [{:delegate_to, nick}]
+      nick -> [{action, nick}]
     end)
   end
 
@@ -489,25 +493,7 @@ defmodule BorsNG.Command do
   end
 
   def run(c, {:delegate_to, login}) do
-    delegatee =
-      case Repo.get_by(User, login: login) do
-        nil ->
-          installation = Repo.get!(Installation, c.project.installation_id)
-
-          gh_user =
-            GitHub.get_user_by_login!(
-              {:installation, installation.installation_xref},
-              login
-            )
-
-          Repo.insert!(%User{
-            login: gh_user.login,
-            user_xref: gh_user.id
-          })
-
-        user ->
-          user
-      end
+    delegatee = get_or_insert_user_by_login(c, login)
 
     delegate_to(c, delegatee)
   end
@@ -523,6 +509,24 @@ defmodule BorsNG.Command do
     )
   end
 
+  def run(c, {:undelegate_to, login}) do
+    undelegatee = get_or_insert_user_by_login(c, login)
+
+    Permission.undelegate(undelegatee.id, c.patch.id)
+
+    readd_command = case c.patch.author do
+      ^undelegatee -> "bors d+"
+      _ -> "bors d=#{undelegatee.login}"
+    end
+
+    c.project.repo_xref
+    |> Project.installation_connection(Repo)
+    |> GitHub.post_comment!(
+      c.pr_xref,
+      ~s{:no_entry_sign: This PR is no longer delegated to #{undelegatee.login}. To re-add their delegation, reply with `#{readd_command}`.}
+    )
+  end
+
   def run(c, :retry) do
     {commenter, cmd} = Logging.most_recent_cmd(c.patch)
     run(%{c | commenter: commenter}, cmd)
@@ -535,6 +539,27 @@ defmodule BorsNG.Command do
       c.pr_xref,
       ~s/👊/
     )
+  end
+
+  defp get_or_insert_user_by_login(c, login) do
+    case Repo.get_by(User, login: login) do
+      nil ->
+        installation = Repo.get!(Installation, c.project.installation_id)
+
+        gh_user =
+          GitHub.get_user_by_login!(
+            {:installation, installation.installation_xref},
+            login
+          )
+
+        Repo.insert!(%User{
+          login: gh_user.login,
+          user_xref: gh_user.id
+        })
+
+      user ->
+        user
+    end
   end
 
   def delegate_to(c, delegatee) do
