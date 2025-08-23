@@ -364,6 +364,34 @@ defmodule BorsNG.ProjectController do
     end
   end
 
+ defp get_or_insert_user_by_login(project, login) do
+  case Repo.get_by(User, login: login) do
+    nil ->
+      {:installation, project.installation.installation_xref}
+      |> GitHub.get_user_by_login!(login)
+      |> case do
+        nil ->
+          nil
+
+        gh_user ->
+          case Repo.get_by(User, user_xref: gh_user.id) do
+            nil ->
+              User.changeset(%User{}, %{
+                user_xref: gh_user.id,
+                login: gh_user.login
+              })
+              |> Repo.insert!()
+
+            user ->
+              user
+          end
+      end
+
+    user ->
+      user
+  end
+ end
+
   def add_reviewer(_, :ro, _, _), do: raise(BorsNG.PermissionDeniedError)
 
   def add_reviewer(conn, :rw, project, %{"reviewer" => %{"login" => ""}}) do
@@ -381,32 +409,7 @@ defmodule BorsNG.ProjectController do
   end
 
   def add_reviewer(project, %{"reviewer" => %{"login" => login}}) do
-    user =
-      case Repo.get_by(User, login: login) do
-        nil ->
-          {:installation, project.installation.installation_xref}
-          |> GitHub.get_user_by_login!(login)
-          |> case do
-            nil ->
-              nil
-
-            gh_user ->
-              case Repo.get_by(User, user_xref: gh_user.id) do
-                nil ->
-                  User.changeset(%User{}, %{
-                    user_xref: gh_user.id,
-                    login: gh_user.login
-                  })
-                  |> Repo.insert!()
-
-                user ->
-                  user
-              end
-          end
-
-        user ->
-          user
-      end
+    user = get_or_insert_user_by_login(project, login)
 
     {state, msg} =
       case user do
@@ -441,32 +444,7 @@ defmodule BorsNG.ProjectController do
   end
 
   def add_member(conn, :rw, project, %{"member" => %{"login" => login}}) do
-    user =
-      case Repo.get_by(User, login: login) do
-        nil ->
-          {:installation, project.installation.installation_xref}
-          |> GitHub.get_user_by_login!(login)
-          |> case do
-            nil ->
-              nil
-
-            gh_user ->
-              case Repo.get_by(User, user_xref: gh_user.id) do
-                nil ->
-                  User.changeset(%User{}, %{
-                    user_xref: gh_user.id,
-                    login: gh_user.login
-                  })
-                  |> Repo.insert!()
-
-                user ->
-                  user
-              end
-          end
-
-        user ->
-          user
-      end
+    user = get_or_insert_user_by_login(project, login)
 
     {state, msg} =
       case user do
@@ -559,5 +537,23 @@ defmodule BorsNG.ProjectController do
     conn
     |> put_flash(:ok, "Started synchronizing")
     |> redirect(to: project_path(conn, :show, project))
+  end
+
+  def undelegate_user(_, :ro, _, _), do: raise(BorsNG.PermissionDeniedError)
+
+  def undelegate_user(conn, :rw, project, %{"user" => %{"login" => ""}}) do
+    conn
+    |> put_flash(:error, "Please enter a GitHub user's nickname")
+    |> redirect(to: project_path(conn, :settings, project))
+  end
+
+  def undelegate_user(conn, :rw, project, %{"user" => %{"login" => login}}) do
+    user = get_or_insert_user_by_login(project, login)
+
+    BorsNG.Database.Context.Permission.undelegate_user(user.id)
+
+    conn
+    |> put_flash(:ok, "Undelegated user")
+    |> redirect(to: project_path(conn, :settings, project))
   end
 end
