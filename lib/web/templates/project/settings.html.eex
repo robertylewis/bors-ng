@@ -119,6 +119,16 @@
   <%= text_input f, :trying_branch, id: "trying_branch" %>
   <div class=toolbar><%= submit "Update", class: "toolbar-item" %></div>
 <% end %>
+
+<br>
+<br>
+<h2 class=header>Undelegate user from all PRs</h2>
+<p>Note that this is across all repos managed by this installation of bors, not just this one! </p>
+<%= form_for @conn, project_path(@conn, :undelegate_user, @project.id), [as: :user], fn f -> %>
+  <label for=undelegatee>GitHub username</label>
+  <%= text_input f, :login, id: "undelegatee" %>
+  <div class=toolbar><%= submit "Undelegate", title: "Undelegate user", class: "toolbar-item" %></div>
+<% end %>
 </section> <!-- class=split-item -->
 
 <section class=split-item>

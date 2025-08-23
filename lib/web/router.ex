@@ -65,6 +65,7 @@ defmodule BorsNG.Router do
     get("/", ProjectController, :index)
     get("/:id", ProjectController, :show)
     get("/:id/settings", ProjectController, :settings)
+    post("/:id/settings/undelegate", ProjectController, :undelegate_user)
     put("/:id/settings/branches", ProjectController, :update_branches)
     put("/:id/settings/reviewer", ProjectController, :update_reviewer_settings)
     put("/:id/settings/member", ProjectController, :update_member_settings)
