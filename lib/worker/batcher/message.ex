@@ -196,7 +196,6 @@ defmodule BorsNG.Worker.Batcher.Message do
       commits
       |> Enum.filter(&(&1.author_email != user_email))
       |> Enum.map(&"Co-authored-by: #{&1.author_name} <#{&1.author_email}>")
-      |> Enum.uniq()
       |> Enum.join("\n")
 
     # filter out Co-authored-by lines from message_body and attach to co_authors
@@ -204,6 +203,7 @@ defmodule BorsNG.Worker.Batcher.Message do
     # join body_co_authors to commit_co_authors and then remove all empty lines
     co_authors = body_co_authors <> "\n" <> commit_co_authors
       |> String.split("\n")
+      |> Enum.uniq()
       |> Enum.reject(& &1 == "")
       |> Enum.join("\n")
 

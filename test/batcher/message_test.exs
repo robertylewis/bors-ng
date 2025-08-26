@@ -322,6 +322,7 @@ defmodule BorsNG.Worker.BatcherMessageTest do
     Fixes that annoying bug.
 
     Co-authored-by: C <c@c>
+    Co-authored-by: E <e@e>
     Co-authored-by: D <d@d>
     Co-authored-by: B <b@b>
     """
@@ -333,9 +334,10 @@ defmodule BorsNG.Worker.BatcherMessageTest do
     Fixes that annoying bug.
 
     Co-authored-by: C <c@c>
+    Co-authored-by: E <e@e>
 
     Co-authored-by: D <d@d>
-
+    Co-authored-by: C <c@c>
 
 
     <!-- boilerplate follows -->
@@ -363,6 +365,7 @@ defmodule BorsNG.Worker.BatcherMessageTest do
       %{author_email: "b@b", author_name: "B"},
       %{author_email: user_email, author_name: "A"},
       %{author_email: "b@b", author_name: "B"},
+      %{author_email: "e@e", author_name: "E"},
       %{author_email: user_email, author_name: "A"}
     ]
 
