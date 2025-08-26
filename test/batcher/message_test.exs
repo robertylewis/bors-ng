@@ -314,4 +314,68 @@ defmodule BorsNG.Worker.BatcherMessageTest do
 
     assert expected_message == actual_message
   end
+
+  test "commit message from squash commits contains both co-authored lines from PR body and commits" do
+    expected_message = """
+    Synchronize background and foreground processing (#1)
+
+    Fixes that annoying bug.
+
+    Co-authored-by: C <c@c>
+    Co-authored-by: D <d@d>
+    Co-authored-by: B <b@b>
+    """
+
+    title = "Synchronize background and foreground processing"
+
+    # also test that extra whitespace which confuses GitHub gets stripped
+    body = """
+    Fixes that annoying bug.
+
+    Co-authored-by: C <c@c>
+
+    Co-authored-by: D <d@d>
+
+
+
+    <!-- boilerplate follows -->
+
+    Thank you for contributing to my awesome OSS project!
+    To make sure your PR is accepted ASAP, make sure all of this
+    stuff is done:
+
+    - [ ] Run the linter
+    - [ ] Run any new or changed tests
+    - [ ] This PR fixes #___ (fill in if it exists)
+    - [ ] Make sure your commit messages make sense
+    """
+
+    user_email = "a@a"
+
+    pr = %{
+      number: 1,
+      title: title,
+      body: body
+    }
+
+    commits = [
+      %{author_email: user_email, author_name: "A"},
+      %{author_email: "b@b", author_name: "B"},
+      %{author_email: user_email, author_name: "A"},
+      %{author_email: "b@b", author_name: "B"},
+      %{author_email: user_email, author_name: "A"}
+    ]
+
+    actual_message =
+      Message.generate_squash_commit_message(
+        pr,
+        commits,
+        user_email,
+        "\n\n<!-- boilerplate follows -->"
+      )
+
+    assert expected_message == actual_message
+  end
+
+
 end

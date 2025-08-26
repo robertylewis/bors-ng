@@ -535,12 +535,12 @@ defmodule BorsNG.Worker.Batcher do
                 Logger.debug("User #{inspect(user)}")
 
                 # If a user doesn't have a public email address in their GH profile
-                # then get the email from the first commit to the PR
+                # then use their ID based email
                 user_email =
                   if user.email != nil do
                     user.email
                   else
-                    Enum.at(commits, 0).author_email
+                    "#{user.id}+#{user.login}@users.noreply.github.com"
                   end
 
                 # The head sha is the final commit in the PR.

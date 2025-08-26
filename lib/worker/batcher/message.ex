@@ -192,15 +192,32 @@ defmodule BorsNG.Worker.Batcher.Message do
   def generate_squash_commit_message(pr, commits, user_email, cut_body_after) do
     message_body = cut_body(pr.body, cut_body_after)
 
-    co_authors =
+    commit_co_authors =
       commits
       |> Enum.filter(&(&1.author_email != user_email))
       |> Enum.map(&"Co-authored-by: #{&1.author_name} <#{&1.author_email}>")
       |> Enum.uniq()
       |> Enum.join("\n")
 
-    "#{pr.title} (##{pr.number})\n\n#{message_body}\n\n#{co_authors}\n"
+    # filter out Co-authored-by lines from message_body and attach to co_authors
+    {body_co_authors, message_body} = filter_lines(message_body, ~r/^Co-authored-by: /)
+    # join body_co_authors to commit_co_authors and then remove all empty lines
+    co_authors = body_co_authors <> "\n" <> commit_co_authors
+      |> String.split("\n")
+      |> Enum.reject(& &1 == "")
+      |> Enum.join("\n")
+
+    "#{pr.title} (##{pr.number})\n\n#{String.trim(message_body)}\n\n#{co_authors}\n"
   end
+
+defp filter_lines(text, regex) do
+  {matching, remaining} =
+    text
+    |> String.split("\n")
+    |> Enum.split_with(&Regex.match?(regex, &1))
+
+  {Enum.join(matching, "\n"), Enum.join(remaining, "\n")}
+end
 
   def generate_commit_message(
         patch_links,
