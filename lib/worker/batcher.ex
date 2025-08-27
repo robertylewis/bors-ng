@@ -25,6 +25,7 @@ defmodule BorsNG.Worker.Batcher do
   use GenServer
   alias BorsNG.Worker.Batcher
   alias BorsNG.Worker.Batcher.Divider
+  alias BorsNG.Worker.Zulip
   alias BorsNG.Database.Repo
   alias BorsNG.Database.Batch
   alias BorsNG.Database.BatchState
@@ -845,6 +846,10 @@ defmodule BorsNG.Worker.Batcher do
 
     patches = Enum.map(patch_links, & &1.patch)
     state = Divider.split_batch(patch_links, batch)
+
+    fail_message = ""
+
+    Zulip.send_message("⚠️ bors batch failed\n\n" <> fail_message)
 
     # The batch failed, so it's OK to push the next batch on top of the same commit we saw
     # see do_get_base/4
