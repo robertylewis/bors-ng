@@ -13,6 +13,7 @@ defmodule BorsNG.Worker.Batcher.Registry do
   use GenServer
 
   alias BorsNG.Worker.Batcher
+  alias BorsNG.Worker.Zulip
   alias BorsNG.Database.Batch
   alias BorsNG.Database.Crash
   alias BorsNG.Database.Project
@@ -143,7 +144,7 @@ defmodule BorsNG.Worker.Batcher.Registry do
         inspect("#{e_message}\n\nCrash reason:\n#{reason}", pretty: true, width: 60)
     end
 
-    send_zulip_notification("🚨 bors batch worker crashed!\n\n" <> crash_message)
+    Zulip.send_message("🚨 bors batch worker crashed!\n\n" <> crash_message)
 
     project_id
     |> Batch.all_for_project(:waiting)
@@ -168,41 +169,6 @@ defmodule BorsNG.Worker.Batcher.Registry do
   def handle_info(_msg, state) do
     {:noreply, state}
   end
-
-  defp send_zulip_notification(message) do
-    try do
-      zulip_api_url = Confex.fetch_env!(:bors, :zulip_api_url)
-      bot_email = Confex.fetch_env!(:bors, :zulip_bot_email)
-      bot_api_key = Confex.fetch_env!(:bors, :zulip_bot_api_key)
-      channel_name = Confex.fetch_env!(:bors, :zulip_channel_name)
-      topic = Confex.fetch_env!(:bors, :zulip_topic)
-
-      # Skip if any required config is empty
-      if empty_string?(zulip_api_url) or empty_string?(bot_email) or empty_string?(bot_api_key) do
-        :ok
-      else
-        body = %{
-          "type" => "channel",
-          "to" => channel_name,
-          "topic" => topic,
-          "content" => message
-        }
-
-        client = Tesla.client([
-          {Tesla.Middleware.BasicAuth, username: bot_email, password: bot_api_key},
-          Tesla.Middleware.FormUrlencoded
-        ], Tesla.Adapter.Hackney)
-
-        Tesla.post(client, zulip_api_url <> "messages", body)
-      end
-    rescue
-      e ->
-        Logger.error("Failed to send Zulip notification: #{inspect(e)}")
-        :error
-    end
-  end
-  defp empty_string?(""), do: true
-  defp empty_string?(_), do: false
 
   defp build_message(project_id, pid, reason) do
     waiting = project_id
