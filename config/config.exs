@@ -28,6 +28,13 @@ config :bors,
   log_outgoing: {:system, "BORS_LOG_OUTGOING", false},
   poll_period: {:system, :integer, "BORS_POLL_PERIOD", 1_800_000}
 
+config :bors,
+  zulip_api_url: {:system, "ZULIP_API_URL", ""},
+  zulip_bot_email: {:system, "ZULIP_BOT_EMAIL", ""},
+  zulip_bot_api_key: {:system, "ZULIP_BOT_API_KEY", ""},
+  zulip_channel_name: {:system, "ZULIP_CHANNEL_NAME", ""},
+  zulip_topic: {:system, "ZULIP_TOPIC", ""}
+
 # General application configuration
 config :bors, BorsNG,
   command_trigger: {:system, :string, "COMMAND_TRIGGER", "bors"},
