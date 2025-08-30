@@ -40,6 +40,8 @@ defmodule BorsNG.Worker.Batcher do
 
   @prerun_poll_period 1 * 60 * 1000
 
+  @type batch_state :: :waiting | :running | :ok | :error | :conflict | :canceled
+
   # Public API
 
   def start_link(project_id) do
@@ -218,6 +220,8 @@ defmodule BorsNG.Worker.Batcher do
 
     Enum.map(running, &Batch.changeset(&1, %{state: :canceled}))
     |> Enum.each(&Repo.update!/1)
+
+    Enum.each(running, &send_zulip(&1, :canceled))
 
     repo_conn =
       Project
@@ -455,6 +459,8 @@ defmodule BorsNG.Worker.Batcher do
     batch
     |> Batch.changeset(%{state: status, commit: commit, last_polled: now})
     |> Repo.update!()
+
+    send_zulip(batch, status)
 
     Project.ping!(batch.project_id)
     status
@@ -740,6 +746,8 @@ defmodule BorsNG.Worker.Batcher do
     |> Batch.changeset(%{state: next_status, last_polled: now})
     |> Repo.update!()
 
+    send_zulip(batch, next_status)
+
     if next_status != :running do
       poll_(batch.project_id)
     end
@@ -847,10 +855,6 @@ defmodule BorsNG.Worker.Batcher do
     patches = Enum.map(patch_links, & &1.patch)
     state = Divider.split_batch(patch_links, batch)
 
-    fail_message = ""
-
-    Zulip.send_message("⚠️ bors batch failed\n\n" <> fail_message)
-
     # The batch failed, so it's OK to push the next batch on top of the same commit we saw
     # see do_get_base/4
     Process.put(:last_commit, :nil)
@@ -916,6 +920,8 @@ defmodule BorsNG.Worker.Batcher do
     |> Batch.changeset(%{state: :error})
     |> Repo.update!()
 
+    send_zulip(batch, :error)
+
     Project.ping!(project.id)
 
     project
@@ -949,6 +955,8 @@ defmodule BorsNG.Worker.Batcher do
     batch
     |> Batch.changeset(%{state: :canceled})
     |> Repo.update!()
+
+    send_zulip(batch, :canceled)
 
     repo_conn = get_repo_conn(project)
 
@@ -1282,6 +1290,21 @@ defmodule BorsNG.Worker.Batcher do
         }
       )
     )
+  end
+
+  # this should be called whenever the state of a Batch is changed using Batch.changeset
+  @spec send_zulip(%Batch{}, batch_state) :: :ok | :error
+  # :waiting | :running | :ok -> do nothing
+  defp send_zulip(_, :waiting), do: :ok
+  defp send_zulip(_, :running), do: :ok
+  defp send_zulip(_, :ok), do: :ok
+  # :error | :conflict | :canceled -> send notification
+  defp send_zulip(batch, state) do
+    fail_message = "Batch #{batch.id} failed: #{state}"
+
+    # get PR numbers, get link to batch page or statuses?
+
+    Zulip.send_message("⚠️ bors batch failed\n\n" <> fail_message)
   end
 
   @spec get_repo_conn(%Project{}) :: {{:installation, number}, number}
