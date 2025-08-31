@@ -26,7 +26,7 @@ defmodule BorsNG.LayoutView do
   end
 
   def get_heroku_commit do
-    System.get_env("HEROKU_SLUG_COMMIT")
+    System.get_env("HEROKU_BUILD_COMMIT")
   end
 
   def get_git_commit do
