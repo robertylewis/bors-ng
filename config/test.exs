@@ -26,10 +26,3 @@ config :bors, :oauth2, BorsNG.GitHub.OAuth2Mock
 config :bors, :is_test, true
 
 config :bors, :celebrate_new_year, false
-
-config :bors, BorsNG.Worker.Batcher.Registry,
-  zulip_api_url: "",
-  zulip_bot_email: "",
-  zulip_bot_api_key: "",
-  zulip_channel_name: "",
-  zulip_topic: ""

@@ -25,6 +25,7 @@ defmodule BorsNG.Worker.Batcher do
   use GenServer
   alias BorsNG.Worker.Batcher
   alias BorsNG.Worker.Batcher.Divider
+  alias BorsNG.Worker.Zulip
   alias BorsNG.Database.Repo
   alias BorsNG.Database.Batch
   alias BorsNG.Database.BatchState
@@ -38,6 +39,8 @@ defmodule BorsNG.Worker.Batcher do
   import Ecto.Query
 
   @prerun_poll_period 1 * 60 * 1000
+
+  @type batch_state :: :waiting | :running | :ok | :error | :conflict | :canceled
 
   # Public API
 
@@ -217,6 +220,8 @@ defmodule BorsNG.Worker.Batcher do
 
     Enum.map(running, &Batch.changeset(&1, %{state: :canceled}))
     |> Enum.each(&Repo.update!/1)
+
+    Enum.each(running, &send_zulip(&1, :canceled))
 
     repo_conn =
       Project
@@ -454,6 +459,8 @@ defmodule BorsNG.Worker.Batcher do
     batch
     |> Batch.changeset(%{state: status, commit: commit, last_polled: now})
     |> Repo.update!()
+
+    send_zulip(batch, status)
 
     Project.ping!(batch.project_id)
     status
@@ -739,6 +746,8 @@ defmodule BorsNG.Worker.Batcher do
     |> Batch.changeset(%{state: next_status, last_polled: now})
     |> Repo.update!()
 
+    send_zulip(batch, next_status)
+
     if next_status != :running do
       poll_(batch.project_id)
     end
@@ -911,6 +920,8 @@ defmodule BorsNG.Worker.Batcher do
     |> Batch.changeset(%{state: :error})
     |> Repo.update!()
 
+    send_zulip(batch, :error)
+
     Project.ping!(project.id)
 
     project
@@ -944,6 +955,8 @@ defmodule BorsNG.Worker.Batcher do
     batch
     |> Batch.changeset(%{state: :canceled})
     |> Repo.update!()
+
+    send_zulip(batch, :canceled)
 
     repo_conn = get_repo_conn(project)
 
@@ -1277,6 +1290,70 @@ defmodule BorsNG.Worker.Batcher do
         }
       )
     )
+  end
+
+  # this should be called whenever the state of a Batch is changed using Batch.changeset
+  @spec send_zulip(%Batch{}, batch_state) :: :ok | :error
+  # :waiting | :running | :ok -> do nothing
+  defp send_zulip(_, :waiting), do: :ok
+  defp send_zulip(_, :running), do: :ok
+  defp send_zulip(_, :ok), do: :ok
+  # :error | :conflict | :canceled -> send notification
+  defp send_zulip(batch, state) do
+    fail_message = try do
+      build_message(batch, state)
+    rescue
+      e ->
+        e_message = "Failed to build message:\n#{inspect(e, pretty: true, width: 60)}"
+        Logger.error(e_message)
+        "⚠️ bors batch failed!\n\nBatch #{batch.id}: #{state}\n\n#{e_message}"
+    end
+
+    Zulip.send_message(fail_message)
+  end
+
+  # see also lib/web/templates/project/show.html.eex
+  defp build_message(batch, state) do
+    project = Repo.get(Project, batch.project_id)
+    project_pr_url = Confex.fetch_env!(:bors, :html_github_root) <> "/" <> project.name <> "/pull/"
+
+    statuses = Repo.all(Status.all_for_batch(batch.id))
+    statuses_message = if Enum.empty?(statuses) do
+      ""
+    else
+       "Status check(s):\n" <>
+      (statuses
+      |> Enum.map(&format_status/1)
+      |> Enum.join("\n"))
+    end
+
+    patch_links_pr_xrefs =
+      Repo.all(LinkPatchBatch.from_batch(batch.id))
+      |> Enum.map(& &1.patch.pr_xref)
+      |> Enum.sort()
+
+    patch_links_pr_xrefs_message = "PR(s) in the batch:\n" <>
+      (patch_links_pr_xrefs
+      |> Enum.map(& "- [##{&1}](#{project_pr_url}#{&1})")
+      |> Enum.join("\n"))
+
+    """
+    ⚠️ bors batch failed!
+
+    Batch [#{batch.id}](#{batch_url(Endpoint, :show, batch.id)}): #{state}
+
+    #{statuses_message}
+
+    #{patch_links_pr_xrefs_message}
+    """
+  end
+
+  defp format_status(status) do
+    if status.url do
+      "- [#{status.identifier} (#{BorsNG.BatchView.stringify_state(status.state)})](#{status.url})"
+    else
+      "- #{status.identifier} (#{BorsNG.BatchView.stringify_state(status.state)})"
+    end
   end
 
   @spec get_repo_conn(%Project{}) :: {{:installation, number}, number}
