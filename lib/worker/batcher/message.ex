@@ -189,16 +189,20 @@ defmodule BorsNG.Worker.Batcher.Message do
     end
   end
 
-  def generate_squash_commit_message(pr, commits, user_email, cut_body_after) do
+  def generate_squash_commit_message(pr, commits, user_email, user_name, cut_body_after) do
     message_body = cut_body(pr.body, cut_body_after)
 
     commit_co_authors =
       commits
-      |> Enum.filter(&(&1.author_email != user_email))
+      |> Enum.filter(&(&1.author_email != user_email && &1.author_name != user_name))
       |> Enum.map(&"Co-authored-by: #{&1.author_name} <#{&1.author_email}>")
       |> Enum.join("\n")
+    # possible TODO: get Co-authored-by lines from each commit message?
+    # cf. https://github.com/bors-ng/bors-ng/issues/987
 
     # filter out Co-authored-by lines from message_body and attach to co_authors
+    # possible TODO: transform @login to username <email>
+    # cf. https://github.com/bors-ng/bors-ng/issues/1041
     {body_co_authors, message_body} = filter_lines(message_body, ~r/^Co-authored-by: /)
     # join body_co_authors to commit_co_authors and then remove all empty lines
     co_authors = body_co_authors <> "\n" <> commit_co_authors

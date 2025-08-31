@@ -550,6 +550,8 @@ defmodule BorsNG.Worker.Batcher do
                     "#{user.id}+#{user.login}@users.noreply.github.com"
                   end
 
+                user_name = user.name || user.login
+
                 # The head sha is the final commit in the PR.
                 source_sha = pr.head_sha
                 Logger.info("Staging branch #{stmp}")
@@ -581,6 +583,7 @@ defmodule BorsNG.Worker.Batcher do
                     pr,
                     commits,
                     user_email,
+                    user_name,
                     toml.cut_body_after
                   )
 
@@ -596,7 +599,7 @@ defmodule BorsNG.Worker.Batcher do
                           tree: merge_commit.tree,
                           parents: [prev_head],
                           commit_message: commit_message,
-                          committer: %{name: user.name || user.login, email: user_email}
+                          committer: %{name: user_name, email: user_email}
                         }
                       )
                   end
