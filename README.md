@@ -327,7 +327,7 @@ Or you can do it manually:
 **Note**: The `GITHUB_INTEGRATION_ID` is now called the App ID on GitHub.
 
     $ heroku create --buildpack "https://github.com/HashNuke/heroku-buildpack-elixir.git" bors-app
-    $ heroku buildpacks:add https://github.com/gjaldon/heroku-buildpack-phoenix-static.git
+    $ heroku buildpacks:add https://github.com/gigalixir/gigalixir-buildpack-phoenix-static.git
     $ heroku addons:create heroku-postgresql:hobby-dev
     $ heroku config:set \
         MIX_ENV=prod \
@@ -354,6 +354,12 @@ Or you can do it manually:
 It can recover the information after restarting, but it will not work correctly with Heroku's replication system.
 If you need more throughput than one dyno can provide, you should deploy using a system that allows Erlang clustering to work.
 
+To make the commit version show up properly on the dashboard, enable [Heroku Labs: Dyno Metadata](https://devcenter.heroku.com/articles/dyno-metadata) by installing the Heroku CLI and then running:
+
+    heroku labs:enable runtime-dyno-metadata -a <app name>
+    heroku labs:enable runtime-dyno-build-metadata -a <app name>
+
+Be sure to fix the link to the GitHub repo in `app.html.eex`.
 
 ### Deploying using [Docker] (and compatible container orchestration systems)
 
