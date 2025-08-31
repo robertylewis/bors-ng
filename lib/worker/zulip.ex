@@ -43,7 +43,7 @@ defmodule BorsNG.Worker.Zulip do
         end
       rescue
         e ->
-          Logger.error("Failed to send Zulip notification: #{inspect(e)}")
+          Logger.error("Failed to send Zulip message: #{message}\n\nerror: #{inspect(e)}")
           :error
       end
     end

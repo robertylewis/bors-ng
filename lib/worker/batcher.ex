@@ -1300,11 +1300,60 @@ defmodule BorsNG.Worker.Batcher do
   defp send_zulip(_, :ok), do: :ok
   # :error | :conflict | :canceled -> send notification
   defp send_zulip(batch, state) do
-    fail_message = "Batch #{batch.id} failed: #{state}"
+    fail_message = try do
+      build_message(batch, state)
+    rescue
+      e ->
+        e_message = "Failed to build message:\n#{inspect(e, pretty: true, width: 60)}"
+        Logger.error(e_message)
+        "⚠️ bors batch failed!\n\nBatch #{batch.id}: #{state}\n\n#{e_message}"
+    end
 
-    # get PR numbers, get link to batch page or statuses?
+    Zulip.send_message(fail_message)
+  end
 
-    Zulip.send_message("⚠️ bors batch failed\n\n" <> fail_message)
+  # see also lib/web/templates/project/show.html.eex
+  defp build_message(batch, state) do
+    project = Repo.get(Project, batch.project_id)
+    project_pr_url = Confex.fetch_env!(:bors, :html_github_root) <> "/" <> project.name <> "/pull/"
+
+    statuses = Repo.all(Status.all_for_batch(batch.id))
+    statuses_message = if Enum.empty?(statuses) do
+      ""
+    else
+       "Status check(s):\n" <>
+      (statuses
+      |> Enum.map(&format_status/1)
+      |> Enum.join("\n"))
+    end
+
+    patch_links_pr_xrefs =
+      Repo.all(LinkPatchBatch.from_batch(batch.id))
+      |> Enum.map(& &1.patch.pr_xref)
+      |> Enum.sort()
+
+    patch_links_pr_xrefs_message = "PR(s) in the batch:\n" <>
+      (patch_links_pr_xrefs
+      |> Enum.map(& "- [##{&1}](#{project_pr_url}#{&1})")
+      |> Enum.join("\n"))
+
+    """
+    ⚠️ bors batch failed!
+
+    Batch [#{batch.id}](#{batch_url(Endpoint, :show, batch.id)}): #{state}
+
+    #{statuses_message}
+
+    #{patch_links_pr_xrefs_message}
+    """
+  end
+
+  defp format_status(status) do
+    if status.url do
+      "- [#{status.identifier} (#{BorsNG.BatchView.stringify_state(status.state)})](#{status.url})"
+    else
+      "- #{status.identifier} (#{BorsNG.BatchView.stringify_state(status.state)})"
+    end
   end
 
   @spec get_repo_conn(%Project{}) :: {{:installation, number}, number}

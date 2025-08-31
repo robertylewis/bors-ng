@@ -141,7 +141,7 @@ defmodule BorsNG.Worker.Batcher.Registry do
       e ->
         e_message = "Failed to build crash message:\n#{inspect(e, pretty: true, width: 60)}"
         Logger.error(e_message)
-        inspect("#{e_message}\n\nCrash reason:\n#{reason}", pretty: true, width: 60)
+        "#{e_message}\n\nCrash reason:\n#{inspect(reason, pretty: true, width: 60)}"
     end
 
     Zulip.send_message("🚨 bors batch worker crashed!\n\n" <> crash_message)
@@ -176,6 +176,9 @@ defmodule BorsNG.Worker.Batcher.Registry do
     |> Repo.all()
     |> Repo.preload([:patches])
 
+    project = Repo.get(Project, project_id)
+    project_pr_url = Confex.fetch_env!(:bors, :html_github_root) <> "/" <> project.name <> "/pull/"
+
     waiting_message = if length(waiting) > 0 do
       """
       The following batches were "Waiting" and will now be deleted:
@@ -184,7 +187,7 @@ defmodule BorsNG.Worker.Batcher.Registry do
       |> Enum.map(fn {id, prs} ->
         """
         - Batch #{id}:
-        #{prs |> Enum.map(& "  - ##{&1}") |> Enum.join("\n")}
+        #{prs |> Enum.map(& "  - [##{&1}](#{project_pr_url}#{&1})") |> Enum.join("\n")}
         """
       end)}
       """
@@ -205,7 +208,7 @@ defmodule BorsNG.Worker.Batcher.Registry do
       |> Enum.map(fn {id, prs} ->
         """
         - Batch #{id}:
-        #{prs |> Enum.map(& "  - ##{&1}") |> Enum.join("\n")}
+        #{prs |> Enum.map(& "  - [##{&1}](#{project_pr_url}#{&1})") |> Enum.join("\n")}
         """
       end)}
       """
@@ -214,8 +217,8 @@ defmodule BorsNG.Worker.Batcher.Registry do
     end
 
     """
-    Project: `#{project_id}`
-    PID: `#{pid}`
+    Project: `#{project.name}`
+    Batcher Process ID: `#{pid}`
     Reason:
     ```
     #{inspect(reason, pretty: true, width: 60)}

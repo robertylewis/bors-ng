@@ -21,6 +21,7 @@ defmodule BorsNG.Worker.BatcherTest do
 
     proj =
       %Project{
+        name: "project_name",
         installation_id: inst.id,
         repo_xref: 14,
         staging_branch: "staging"
