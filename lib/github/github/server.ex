@@ -763,7 +763,7 @@ defmodule BorsNG.GitHub.Server do
 
   @spec extract_user_repo_perms(map()) :: tuser_repo_perms
   defp extract_user_repo_perms(data) do
-    Map.new(["admin", "push", "pull"], fn perm ->
+    Map.new(BorsNG.Database.ProjectPermission.string_list_no_nil(), fn perm ->
       {String.to_atom(perm), !!data["permissions"][perm]}
     end)
   end
