@@ -22,9 +22,10 @@
 
 <section class=split-item>
 <h2 class=header>Reviewers</h2>
-<p>permission to run any command, and to change repository settings</p>
+<p>These users have permission to run any command and to change repository settings.</p>
 <%= form_for @update_reviewer_settings, project_path(@conn, :update_reviewer_settings, @project), [as: :project], fn f -> %>
-  <label for=project_auto_reviewer_required_perm>Synchronize</label>
+  <label for=project_auto_reviewer_required_perm>Synchronize bors reviewers with GitHub repo collaborators with the following
+  <a href="https://docs.github.com/en/organizations/managing-user-access-to-your-organizations-repositories/managing-repository-roles/repository-roles-for-an-organization#repository-roles-for-organizations">role</a>:</label>
   <div class=toolbar>
     <%= select f, :auto_reviewer_required_perm, BorsNG.Database.ProjectPermission.select_list %>
     <%= submit "Update", class: "toolbar-item" %>
@@ -66,9 +67,10 @@
 
 <section class=split-item>
 <h2 class=header>Members</h2>
-<p>permission to run the <code>try</code>, <code>retry</code> and <code>cancel</code> commands</p>
+<p>These users have permission to run the <code>try</code>, <code>retry</code> and <code>cancel</code> commands.</p>
 <%= form_for @update_member_settings, project_path(@conn, :update_member_settings, @project), [as: :project], fn f -> %>
-  <label for=project_auto_member_required_perm>Synchronize</label>
+  <label for=project_auto_member_required_perm>Synchronize bors members with GitHub repo collaborators with the following
+  <a href="https://docs.github.com/en/organizations/managing-user-access-to-your-organizations-repositories/managing-repository-roles/repository-roles-for-an-organization#repository-roles-for-organizations">role</a>:</label>
   <div class=toolbar>
     <%= select f, :auto_member_required_perm, BorsNG.Database.ProjectPermission.select_list %>
     <%= submit "Update", class: "toolbar-item" %>
@@ -115,6 +117,7 @@
 <%= form_for @update_branches, project_path(@conn, :update_branches, @project), [as: :project], fn f -> %>
   <label for=staging_branch>staging</label>
   <%= text_input f, :staging_branch, id: "staging_branch" %>
+  <br>
   <label for=trying_branch>trying</label>
   <%= text_input f, :trying_branch, id: "trying_branch" %>
   <div class=toolbar><%= submit "Update", class: "toolbar-item" %></div>
