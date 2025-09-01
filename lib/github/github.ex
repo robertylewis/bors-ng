@@ -22,8 +22,8 @@ defmodule BorsNG.GitHub do
   @type trepo :: BorsNG.GitHub.Repo.t()
   @type tpr :: BorsNG.GitHub.Pr.t()
   @type tstatus :: :ok | :running | :error
-  @type trepo_perm :: :admin | :push | :pull
-  @type tuser_repo_perms :: %{admin: boolean, push: boolean, pull: boolean}
+  @type trepo_perm :: BorsNG.Database.ProjectPermission.trepo_perm()
+  @type tuser_repo_perms :: BorsNG.Database.ProjectPermission.tuser_repo_perms()
   @type tcollaborator :: %{user: tuser, perms: tuser_repo_perms}
   @type tcommitter :: %{name: bitstring, email: bitstring}
 
