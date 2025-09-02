@@ -1303,16 +1303,19 @@ defmodule BorsNG.Worker.Batcher do
   defp send_zulip(_, :ok), do: :ok
   # :error | :conflict | :canceled -> send notification
   defp send_zulip(batch, state) do
-    fail_message = try do
+    {fail_message, pr_messages} = try do
       build_message(batch, state)
     rescue
       e ->
         e_message = "Failed to build message:\n#{inspect(e, pretty: true, width: 60)}"
         Logger.error(e_message)
-        "⚠️ bors batch failed!\n\nBatch #{batch.id}: #{state}\n\n#{e_message}"
+        {"⚠️ bors batch failed!\n\nBatch #{batch.id}: #{state}\n\n#{e_message}", []}
     end
 
     Zulip.send_message(fail_message)
+
+    pr_messages
+    |> Enum.each(&Zulip.send_message/1)
   end
 
   # see also lib/web/templates/project/show.html.eex
@@ -1330,23 +1333,24 @@ defmodule BorsNG.Worker.Batcher do
       |> Enum.join("\n"))
     end
 
+    message = """
+    ⚠️ #{project.name} bors batch [#{batch.id}](#{batch_url(Endpoint, :show, batch.id)}) failed with state: "#{state}"!
+
+    #{statuses_message}
+
+    PR(s) in the batch:
+    """
+
     patch_links_pr_xrefs =
       Repo.all(LinkPatchBatch.from_batch(batch.id))
       |> Enum.map(& &1.patch.pr_xref)
       |> Enum.sort()
 
-    patch_links_pr_xrefs_message = "PR(s) in the batch:\n" <>
-      (patch_links_pr_xrefs
-      |> Enum.map(& "- [#{project.name}##{&1}](#{project_pr_url}#{&1})")
-      |> Enum.join("\n"))
+    patch_links_pr_xrefs_messages =
+      patch_links_pr_xrefs
+      |> Enum.map(& "[#{project.name}##{&1}](#{project_pr_url}#{&1})")
 
-    """
-    ⚠️ #{project.name} bors batch [#{batch.id}](#{batch_url(Endpoint, :show, batch.id)}) failed with state: "#{state}"!
-
-    #{statuses_message}
-
-    #{patch_links_pr_xrefs_message}
-    """
+    {message, patch_links_pr_xrefs_messages}
   end
 
   defp format_status(status) do
