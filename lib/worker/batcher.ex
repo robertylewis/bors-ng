@@ -1337,13 +1337,11 @@ defmodule BorsNG.Worker.Batcher do
 
     patch_links_pr_xrefs_message = "PR(s) in the batch:\n" <>
       (patch_links_pr_xrefs
-      |> Enum.map(& "- [##{&1}](#{project_pr_url}#{&1})")
+      |> Enum.map(& "- [#{project.name}##{&1}](#{project_pr_url}#{&1})")
       |> Enum.join("\n"))
 
     """
-    ⚠️ bors batch failed!
-
-    Batch [#{batch.id}](#{batch_url(Endpoint, :show, batch.id)}): #{state}
+    ⚠️ #{project.name} bors batch [#{batch.id}](#{batch_url(Endpoint, :show, batch.id)}) failed with state: "#{state}"!
 
     #{statuses_message}
 
