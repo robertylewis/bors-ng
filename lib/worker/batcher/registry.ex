@@ -135,16 +135,24 @@ defmodule BorsNG.Worker.Batcher.Registry do
         names
       end
 
-    crash_message = try do
-      build_message(project_id, pid, reason)
+    crash_messages = try do
+      build_messages(project_id, pid, reason)
     rescue
       e ->
         e_message = "Failed to build crash message:\n#{inspect(e, pretty: true, width: 60)}"
         Logger.error(e_message)
-        "#{e_message}\n\nCrash reason:\n#{inspect(reason, pretty: true, width: 60)}"
+        ["#{e_message}\n\nCrash reason:\n#{inspect(reason, pretty: true, width: 60)}"]
     end
 
-    Zulip.send_message("🚨 bors batch worker crashed!\n\n" <> crash_message)
+    case crash_messages do
+      [first | rest] ->
+        Zulip.send_message("🚨 bors batch worker crashed!\n\n" <> first)
+
+        rest
+        |> Enum.each(&Zulip.send_message/1)
+
+      _ -> :ok # impossible
+    end
 
     project_id
     |> Batch.all_for_project(:waiting)
@@ -160,7 +168,7 @@ defmodule BorsNG.Worker.Batcher.Registry do
     Repo.insert(%Crash{
       project_id: project_id,
       component: "batch",
-      crash: crash_message
+      crash: Enum.join(crash_messages, "\n")
     })
 
     {:noreply, {names, refs}}
@@ -170,64 +178,66 @@ defmodule BorsNG.Worker.Batcher.Registry do
     {:noreply, state}
   end
 
-  defp build_message(project_id, pid, reason) do
-    waiting = project_id
-    |> Batch.all_for_project(:waiting)
-    |> Repo.all()
-    |> Repo.preload([:patches])
-
+  defp build_messages(project_id, pid, reason) do
     project = Repo.get(Project, project_id)
     project_pr_url = Confex.fetch_env!(:bors, :html_github_root) <> "/" <> project.name <> "/pull/"
 
-    waiting_message = if length(waiting) > 0 do
-      """
-      The following batches were "Waiting" and will now be deleted:
-      #{waiting
-      |> batch_prs
-      |> Enum.map(fn {id, prs} ->
-        """
-        - Batch #{id}:
-        #{prs |> Enum.map(& "  - [##{&1}](#{project_pr_url}#{&1})") |> Enum.join("\n")}
-        """
-      end)}
-      """
-    else
-      ""
-    end
-
-    running = project_id
-    |> Batch.all_for_project(:running)
-    |> Repo.all()
-    |> Repo.preload([:patches])
-
-    running_message = if length(running) > 0 do
-      """
-      The following batches were "Running" and will now be canceled:
-      #{running
-      |> batch_prs
-      |> Enum.map(fn {id, prs} ->
-        """
-        - Batch #{id}:
-        #{prs |> Enum.map(& "  - [##{&1}](#{project_pr_url}#{&1})") |> Enum.join("\n")}
-        """
-      end)}
-      """
-    else
-      ""
-    end
-
-    """
+    header = """
     Project: `#{project.name}`
     Batcher Process ID: `#{pid}`
     Reason:
     ```
     #{inspect(reason, pretty: true, width: 60)}
     ```
-
-    #{waiting_message}
-
-    #{running_message}
     """
+
+    waiting = project_id
+    |> Batch.all_for_project(:waiting)
+    |> Repo.all()
+    |> Repo.preload([:patches])
+
+    waiting_messages = pr_messages(waiting, "Waiting", "deleted", project.name, project_pr_url)
+
+    running = project_id
+    |> Batch.all_for_project(:running)
+    |> Repo.all()
+    |> Repo.preload([:patches])
+
+    running_messages = pr_messages(running, "Running", "canceled", project.name, project_pr_url)
+
+    List.flatten([header, waiting_messages, running_messages])
+  end
+  defp pr_messages(batches, prev_state, action, project_name, project_pr_url) do
+    num_batches = length(batches)
+
+    if num_batches > 0 do
+      [
+        "The following #{num_batches} batch(es) were \"#{prev_state}\" and will now be #{action}:",
+
+        batches
+        |> batch_prs
+        |> Enum.with_index()
+        |> Enum.map(fn {batch_index, {batch_id, prs}} ->
+          num_prs = length(prs)
+
+          [
+            """
+            **Batch #{batch_id}**, (#{batch_index + 1}/#{num_batches}) of "#{prev_state}" batch(es) to be #{action}.
+
+            The batch contained the following #{num_prs} PR(s):
+            """,
+
+            prs
+            |> Enum.with_index()
+            |> Enum.map(fn {pr_index, pr_xref} ->
+              "(#{pr_index + 1}/#{num_prs}) of Batch #{batch_id}: [#{project_name}##{pr_xref}](#{project_pr_url}#{pr_xref})"
+            end)
+          ]
+        end)
+      ]
+    else
+      []
+    end
   end
   # Given a list of batches (with preload [:patches]),
   # return a list of {batch.id, [list of patches in the batch]}
