@@ -1333,22 +1333,27 @@ defmodule BorsNG.Worker.Batcher do
       |> Enum.join("\n"))
     end
 
-    message = """
-    ⚠️ #{project.name} bors batch [#{batch.id}](#{batch_url(Endpoint, :show, batch.id)}) failed with state: "#{state}"!
-
-    #{statuses_message}
-
-    PR(s) in the batch:
-    """
-
     patch_links_pr_xrefs =
       Repo.all(LinkPatchBatch.from_batch(batch.id))
       |> Enum.map(& &1.patch.pr_xref)
       |> Enum.sort()
 
+    num_prs = length(patch_links_pr_xrefs)
+
+    message = """
+    ⚠️ `#{project.name}` bors batch [#{batch.id}](#{batch_url(Endpoint, :show, batch.id)}) failed with state: "**#{state}**"!
+
+    #{statuses_message}
+
+    The batch contained the following #{num_prs} PR(s):
+    """
+
     patch_links_pr_xrefs_messages =
       patch_links_pr_xrefs
-      |> Enum.map(& "[#{project.name}##{&1}](#{project_pr_url}#{&1})")
+      |> Enum.with_index()
+      |> Enum.map(fn {index, pr_xref} ->
+        "(#{index + 1}/#{num_prs}) of Batch #{batch.id}: [#{project.name}##{pr_xref}](#{project_pr_url}#{pr_xref})"
+      end)
 
     {message, patch_links_pr_xrefs_messages}
   end
