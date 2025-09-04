@@ -1350,9 +1350,9 @@ defmodule BorsNG.Worker.Batcher do
 
     patch_links_pr_xrefs_messages =
       patch_links_pr_xrefs
-      |> Enum.with_index()
-      |> Enum.map(fn {index, pr_xref} ->
-        "(#{index + 1}/#{num_prs}) of Batch #{batch.id}: [#{project.name}##{pr_xref}](#{project_pr_url}#{pr_xref})"
+      |> Enum.with_index(1)
+      |> Enum.map(fn {pr_xref, index} ->
+        "(#{index}/#{num_prs}) of Batch #{batch.id}: [#{project.name}##{pr_xref}](#{project_pr_url}#{pr_xref})"
       end)
 
     {message, patch_links_pr_xrefs_messages}

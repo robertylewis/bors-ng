@@ -216,21 +216,21 @@ defmodule BorsNG.Worker.Batcher.Registry do
 
         batches
         |> batch_prs
-        |> Enum.with_index()
-        |> Enum.map(fn {batch_index, {batch_id, prs}} ->
+        |> Enum.with_index(1)
+        |> Enum.map(fn {{batch_id, prs}, batch_index} ->
           num_prs = length(prs)
 
           [
             """
-            **Batch #{batch_id}**, (#{batch_index + 1}/#{num_batches}) of "#{prev_state}" batch(es) to be #{action}.
+            **Batch #{batch_id}**, (#{batch_index}/#{num_batches}) of "#{prev_state}" batch(es) to be #{action}.
 
             The batch contained the following #{num_prs} PR(s):
             """,
 
             prs
-            |> Enum.with_index()
-            |> Enum.map(fn {pr_index, pr_xref} ->
-              "(#{pr_index + 1}/#{num_prs}) of Batch #{batch_id}: [#{project_name}##{pr_xref}](#{project_pr_url}#{pr_xref})"
+            |> Enum.with_index(1)
+            |> Enum.map(fn {pr_xref, pr_index} ->
+              "(#{pr_index}/#{num_prs}) of Batch #{batch_id}: [#{project_name}##{pr_xref}](#{project_pr_url}#{pr_xref})"
             end)
           ]
         end)
