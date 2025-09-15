@@ -2951,6 +2951,7 @@ defmodule BorsNG.Worker.BatcherTest do
       }
       |> Repo.insert!()
 
+    # Submit first patch
     Batcher.handle_cast({:reviewed, patch.id, "rvr"}, proj.id)
 
     assert GitHub.ServerMock.get_state() == %{
@@ -3140,7 +3141,7 @@ defmodule BorsNG.Worker.BatcherTest do
     |> Batch.changeset(%{last_polled: 0})
     |> Repo.update!()
 
-    # Finally, finish it.
+    # Finish the first one.
     Batcher.do_handle_cast({:status, {"iniN", "ci", :ok, nil}}, proj.id)
     batch = Repo.get!(Batch, batch.id)
     assert batch.state == :ok
@@ -3273,6 +3274,7 @@ defmodule BorsNG.Worker.BatcherTest do
       }
       |> Repo.insert!()
 
+    # Submit first patch
     Batcher.handle_cast({:reviewed, patch.id, "rvr"}, proj.id)
 
     assert GitHub.ServerMock.get_state() == %{
@@ -3387,7 +3389,7 @@ defmodule BorsNG.Worker.BatcherTest do
            }
 
     # Submit the second one, with a higher priority.
-    Batcher.handle_call({:set_priority, patch2.id, 10}, nil, proj.id)
+    Batcher.handle_call({:set_priority, patch2.id, 101}, nil, proj.id)
     Batcher.handle_cast({:reviewed, patch2.id, "rvr"}, proj.id)
     # Push the second one's timer, so it'll start now.
     {batch, batch2} =
@@ -3698,6 +3700,515 @@ defmodule BorsNG.Worker.BatcherTest do
                  ],
                  2 => [
                    %GitHub.Commit{sha: "5678", author_name: "b", author_email: "f"}
+                 ]
+               }
+             }
+           }
+  end
+
+  test "partial runthrough with medium priority moving one to the head of the line", %{proj: proj} do
+    # Projects are created with a "waiting" state
+    GitHub.ServerMock.put_state(%{
+      {{:installation, 91}, 14} => %{
+        branches: %{"master" => "ini", "staging" => "", "staging.tmp" => ""},
+        commits: %{},
+        comments: %{1 => [], 2 => [], 3 => []},
+        statuses: %{},
+        files: %{"staging.tmp" => %{"bors.toml" => ~s/status = [ "ci" ]/}},
+        pulls: %{
+          1 => %Pr{
+            number: 1,
+            title: "Test",
+            body: "Mess",
+            state: :open,
+            base_ref: "master",
+            head_sha: "N",
+            head_ref: "update",
+            base_repo_id: 14,
+            head_repo_id: 14,
+            merged: false
+          },
+          2 => %Pr{
+            number: 2,
+            title: "Test",
+            body: "Mess",
+            state: :open,
+            base_ref: "master",
+            head_sha: "O",
+            head_ref: "update",
+            base_repo_id: 14,
+            head_repo_id: 14,
+            merged: false
+          },
+          3 => %Pr{
+            number: 3,
+            title: "Test",
+            body: "Mess",
+            state: :open,
+            base_ref: "master",
+            head_sha: "P",
+            head_ref: "update",
+            base_repo_id: 14,
+            head_repo_id: 14,
+            merged: false
+          }
+        },
+        pr_commits: %{
+          1 => [
+            %GitHub.Commit{sha: "1234", author_name: "a", author_email: "e"}
+          ],
+          2 => [
+            %GitHub.Commit{sha: "5678", author_name: "b", author_email: "f"}
+          ],
+          3 => [
+            %GitHub.Commit{sha: "90ab", author_name: "c", author_email: "g"}
+          ]
+        }
+      }
+    })
+
+    patch =
+      %Patch{
+        project_id: proj.id,
+        pr_xref: 1,
+        commit: "N",
+        into_branch: "master"
+      }
+      |> Repo.insert!()
+
+    patch2 =
+      %Patch{
+        project_id: proj.id,
+        pr_xref: 2,
+        commit: "O",
+        into_branch: "master"
+      }
+      |> Repo.insert!()
+
+    patch3 =
+      %Patch{
+        project_id: proj.id,
+        pr_xref: 3,
+        commit: "P",
+        into_branch: "master"
+      }
+      |> Repo.insert!()
+
+    # Submit first patch
+    Batcher.handle_cast({:reviewed, patch.id, "rvr"}, proj.id)
+
+    assert GitHub.ServerMock.get_state() == %{
+             {{:installation, 91}, 14} => %{
+               branches: %{"master" => "ini", "staging" => "", "staging.tmp" => ""},
+               commits: %{},
+               comments: %{1 => [], 2 => [], 3 => []},
+               statuses: %{"N" => %{"bors" => :running}},
+               files: %{"staging.tmp" => %{"bors.toml" => ~s/status = [ "ci" ]/}},
+               pulls: %{
+                 1 => %Pr{
+                   number: 1,
+                   title: "Test",
+                   body: "Mess",
+                   state: :open,
+                   base_ref: "master",
+                   head_sha: "N",
+                   head_ref: "update",
+                   base_repo_id: 14,
+                   head_repo_id: 14,
+                   merged: false
+                 },
+                 2 => %Pr{
+                   number: 2,
+                   title: "Test",
+                   body: "Mess",
+                   state: :open,
+                   base_ref: "master",
+                   head_sha: "O",
+                   head_ref: "update",
+                   base_repo_id: 14,
+                   head_repo_id: 14,
+                   merged: false
+                 },
+                 3 => %Pr{
+                   number: 3,
+                   title: "Test",
+                   body: "Mess",
+                   state: :open,
+                   base_ref: "master",
+                   head_sha: "P",
+                   head_ref: "update",
+                   base_repo_id: 14,
+                   head_repo_id: 14,
+                   merged: false
+                 }
+               },
+               pr_commits: %{
+                 1 => [
+                   %GitHub.Commit{sha: "1234", author_name: "a", author_email: "e"}
+                 ],
+                 2 => [
+                   %GitHub.Commit{sha: "5678", author_name: "b", author_email: "f"}
+                 ],
+                 3 => [
+                   %GitHub.Commit{sha: "90ab", author_name: "c", author_email: "g"}
+                 ]
+               }
+             }
+           }
+
+    batch = Repo.get_by!(Batch, project_id: proj.id)
+    assert batch.state == :waiting
+    # Polling at a later time (yeah, I'm setting the clock back to do it)
+    # kicks it off.
+    batch
+    |> Batch.changeset(%{last_polled: 0})
+    |> Repo.update!()
+
+    Batcher.handle_info({:poll, :once}, proj.id)
+    batch = Repo.get_by!(Batch, project_id: proj.id)
+    assert batch.state == :running
+
+    assert GitHub.ServerMock.get_state() == %{
+             {{:installation, 91}, 14} => %{
+               branches: %{
+                 "master" => "ini",
+                 "staging" => "iniN"
+               },
+               commits: %{
+                 "ini" => %{commit_message: "[ci skip][skip ci][skip netlify]", parents: ["ini"]},
+                 "iniN" => %{
+                   commit_message:
+                     "Merge #1\n\n1:  r=rvr a=[unknown]\n\n\n" <>
+                       "\nCo-authored-by: a <e>\n",
+                   parents: ["ini", "N"]
+                 }
+               },
+               comments: %{1 => [], 2 => [], 3 => []},
+               statuses: %{"N" => %{"bors" => :running}},
+               files: %{"staging.tmp" => %{"bors.toml" => ~s/status = [ "ci" ]/}},
+               pulls: %{
+                 1 => %Pr{
+                   number: 1,
+                   title: "Test",
+                   body: "Mess",
+                   state: :open,
+                   base_ref: "master",
+                   head_sha: "N",
+                   head_ref: "update",
+                   base_repo_id: 14,
+                   head_repo_id: 14,
+                   merged: false
+                 },
+                 2 => %Pr{
+                   number: 2,
+                   title: "Test",
+                   body: "Mess",
+                   state: :open,
+                   base_ref: "master",
+                   head_sha: "O",
+                   head_ref: "update",
+                   base_repo_id: 14,
+                   head_repo_id: 14,
+                   merged: false
+                 },
+                 3 => %Pr{
+                   number: 3,
+                   title: "Test",
+                   body: "Mess",
+                   state: :open,
+                   base_ref: "master",
+                   head_sha: "P",
+                   head_ref: "update",
+                   base_repo_id: 14,
+                   head_repo_id: 14,
+                   merged: false
+                 }
+               },
+               pr_commits: %{
+                 1 => [
+                   %GitHub.Commit{sha: "1234", author_name: "a", author_email: "e"}
+                 ],
+                 2 => [
+                   %GitHub.Commit{sha: "5678", author_name: "b", author_email: "f"}
+                 ],
+                 3 => [
+                   %GitHub.Commit{sha: "90ab", author_name: "c", author_email: "g"}
+                 ]
+               }
+             }
+           }
+
+    # Submit the second one, without priority.
+    Batcher.handle_cast({:reviewed, patch2.id, "rvr"}, proj.id)
+    # Push the second one's timer, so it'll start now.
+    {batch, batch2} =
+      case Repo.all(Batch) do
+        [batch1, batch2] ->
+          if batch1.id == batch.id do
+            {batch1, batch2}
+          else
+            {batch2, batch1}
+          end
+      end
+
+    batch2
+    |> Batch.changeset(%{last_polled: 0})
+    |> Repo.update!()
+
+    # Submit the third one, with medium priority.
+    Batcher.handle_call({:set_priority, patch3.id, 10}, nil, proj.id)
+    Batcher.handle_cast({:reviewed, patch3.id, "rvr"}, proj.id)
+    # Push the third one's timer, so it'll start now.
+    [batch3] = Repo.all(Batch)
+      |> Enum.reject(& &1.id == batch.id)
+      |> Enum.reject(& &1.id == batch2.id)
+
+    batch3
+    |> Batch.changeset(%{last_polled: 0})
+    |> Repo.update!()
+
+    Batcher.handle_info({:poll, :once}, proj.id)
+    # The first one should still be running
+    assert GitHub.ServerMock.get_state() == %{
+             {{:installation, 91}, 14} => %{
+               branches: %{
+                 "master" => "ini",
+                 "staging" => "iniN"
+               },
+               commits: %{
+                 "ini" => %{commit_message: "[ci skip][skip ci][skip netlify]", parents: ["ini"]},
+                 "iniN" => %{
+                   commit_message:
+                     "Merge #1\n\n1:  r=rvr a=[unknown]\n\n\n" <>
+                       "\nCo-authored-by: a <e>\n",
+                   parents: ["ini", "N"]
+                 }
+               },
+               comments: %{1 => [], 2 => [], 3 => []},
+               statuses: %{
+                 "N" => %{"bors" => :running},
+                 "O" => %{"bors" => :running},
+                 "P" => %{"bors" => :running}
+               },
+               files: %{"staging.tmp" => %{"bors.toml" => ~s/status = [ "ci" ]/}},
+               pulls: %{
+                 1 => %Pr{
+                   number: 1,
+                   title: "Test",
+                   body: "Mess",
+                   state: :open,
+                   base_ref: "master",
+                   head_sha: "N",
+                   head_ref: "update",
+                   base_repo_id: 14,
+                   head_repo_id: 14,
+                   merged: false
+                 },
+                 2 => %Pr{
+                   number: 2,
+                   title: "Test",
+                   body: "Mess",
+                   state: :open,
+                   base_ref: "master",
+                   head_sha: "O",
+                   head_ref: "update",
+                   base_repo_id: 14,
+                   head_repo_id: 14,
+                   merged: false
+                 },
+                 3 => %Pr{
+                   number: 3,
+                   title: "Test",
+                   body: "Mess",
+                   state: :open,
+                   base_ref: "master",
+                   head_sha: "P",
+                   head_ref: "update",
+                   base_repo_id: 14,
+                   head_repo_id: 14,
+                   merged: false
+                 }
+               },
+               pr_commits: %{
+                 1 => [
+                   %GitHub.Commit{sha: "1234", author_name: "a", author_email: "e"}
+                 ],
+                 2 => [
+                   %GitHub.Commit{sha: "5678", author_name: "b", author_email: "f"}
+                 ],
+                 3 => [
+                   %GitHub.Commit{sha: "90ab", author_name: "c", author_email: "g"}
+                 ]
+               }
+             }
+           }
+
+    # Finish the first batch. The third batch starts.
+    Batcher.do_handle_cast({:status, {"iniN", "ci", :ok, nil}}, proj.id)
+    batch = Repo.get!(Batch, batch.id)
+    assert batch.state == :ok
+    batch2 = Repo.get!(Batch, batch2.id)
+    assert batch2.state == :waiting
+    batch3 = Repo.get!(Batch, batch3.id)
+    assert batch3.state == :running
+
+    assert GitHub.ServerMock.get_state() == %{
+             {{:installation, 91}, 14} => %{
+               branches: %{
+                 "master" => "iniN",
+                 "staging" => "iniNP"
+               },
+               commits: %{
+                 "ini" => %{commit_message: "[ci skip][skip ci][skip netlify]", parents: ["ini"]},
+                 "iniN" => %{commit_message: "[ci skip][skip ci][skip netlify]", parents: ["iniN"]},
+                 "iniNP" => %{commit_message: "Merge #3\n\n3:  r=rvr a=[unknown]\n\n\n\nCo-authored-by: c <g>\n", parents: ["iniN", "P"]}
+               },
+               comments: %{1 => ["Build succeeded:\n  * ci"], 2 => [], 3 => []},
+               statuses: %{
+                 "N" => %{"bors" => :ok},
+                 "iniN" => %{"bors" => :ok},
+                 "O" => %{"bors" => :running},
+                 "P" => %{"bors" => :running}
+               },
+               files: %{"staging.tmp" => %{"bors.toml" => ~s/status = [ "ci" ]/}},
+               pulls: %{
+                 1 => %Pr{
+                   number: 1,
+                   title: "Test",
+                   body: "Mess",
+                   state: :open,
+                   base_ref: "master",
+                   head_sha: "N",
+                   head_ref: "update",
+                   base_repo_id: 14,
+                   head_repo_id: 14,
+                   merged: false
+                 },
+                 2 => %Pr{
+                   number: 2,
+                   title: "Test",
+                   body: "Mess",
+                   state: :open,
+                   base_ref: "master",
+                   head_sha: "O",
+                   head_ref: "update",
+                   base_repo_id: 14,
+                   head_repo_id: 14,
+                   merged: false
+                 },
+                 3 => %Pr{
+                   number: 3,
+                   title: "Test",
+                   body: "Mess",
+                   state: :open,
+                   base_ref: "master",
+                   head_sha: "P",
+                   head_ref: "update",
+                   base_repo_id: 14,
+                   head_repo_id: 14,
+                   merged: false
+                 }
+               },
+               pr_commits: %{
+                 1 => [
+                   %GitHub.Commit{sha: "1234", author_name: "a", author_email: "e"}
+                 ],
+                 2 => [
+                   %GitHub.Commit{sha: "5678", author_name: "b", author_email: "f"}
+                 ],
+                 3 => [
+                   %GitHub.Commit{sha: "90ab", author_name: "c", author_email: "g"}
+                 ]
+               }
+             }
+           }
+
+    batch2
+    |> Batch.changeset(%{last_polled: 0})
+    |> Repo.update!()
+
+    Batcher.handle_info({:poll, :once}, proj.id)
+    batch2 = Repo.get!(Batch, batch2.id)
+    assert batch2.state == :waiting
+
+    batch3 = Repo.get!(Batch, batch3.id)
+    assert batch3.state == :running
+
+    # Finish the higher-priority, third batch.
+    Batcher.do_handle_cast({:status, {"iniNP", "ci", :ok, nil}}, proj.id)
+    batch2 = Repo.get!(Batch, batch2.id)
+    assert batch2.state == :running
+    batch3 = Repo.get!(Batch, batch3.id)
+    assert batch3.state == :ok
+
+    assert GitHub.ServerMock.get_state() == %{
+             {{:installation, 91}, 14} => %{
+               branches: %{
+                 "master" => "iniNP",
+                 "staging" => "iniNPO"
+               },
+               commits: %{
+                 "ini" => %{commit_message: "[ci skip][skip ci][skip netlify]", parents: ["ini"]},
+                 "iniN" => %{commit_message: "[ci skip][skip ci][skip netlify]", parents: ["iniN"]},
+                  "iniNP" => %{commit_message: "[ci skip][skip ci][skip netlify]", parents: ["iniNP"]},
+                  "iniNPO" => %{commit_message: "Merge #2\n\n2:  r=rvr a=[unknown]\n\n\n\nCo-authored-by: b <f>\n", parents: ["iniNP", "O"]}
+               },
+               comments: %{1 => ["Build succeeded:\n  * ci"], 2 => [], 3 => ["Build succeeded:\n  * ci"]},
+               statuses: %{
+                 "iniN" => %{"bors" => :ok},
+                 "iniNP" => %{"bors" => :ok},
+                 "O" => %{"bors" => :running},
+                 "P" => %{"bors" => :ok},
+                 "N" => %{"bors" => :ok}
+               },
+               files: %{"staging.tmp" => %{"bors.toml" => ~s/status = [ "ci" ]/}},
+               pulls: %{
+                 1 => %Pr{
+                   number: 1,
+                   title: "Test",
+                   body: "Mess",
+                   state: :open,
+                   base_ref: "master",
+                   head_sha: "N",
+                   head_ref: "update",
+                   base_repo_id: 14,
+                   head_repo_id: 14,
+                   merged: false
+                 },
+                 2 => %Pr{
+                   number: 2,
+                   title: "Test",
+                   body: "Mess",
+                   state: :open,
+                   base_ref: "master",
+                   head_sha: "O",
+                   head_ref: "update",
+                   base_repo_id: 14,
+                   head_repo_id: 14,
+                   merged: false
+                 },
+                 3 => %Pr{
+                   number: 3,
+                   title: "Test",
+                   body: "Mess",
+                   state: :open,
+                   base_ref: "master",
+                   head_sha: "P",
+                   head_ref: "update",
+                   base_repo_id: 14,
+                   head_repo_id: 14,
+                   merged: false
+                 }
+               },
+               pr_commits: %{
+                 1 => [
+                   %GitHub.Commit{sha: "1234", author_name: "a", author_email: "e"}
+                 ],
+                 2 => [
+                   %GitHub.Commit{sha: "5678", author_name: "b", author_email: "f"}
+                 ],
+                 3 => [
+                   %GitHub.Commit{sha: "90ab", author_name: "c", author_email: "g"}
                  ]
                }
              }

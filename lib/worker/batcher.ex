@@ -456,6 +456,15 @@ defmodule BorsNG.Worker.Batcher do
     GitHub.delete_branch!(repo_conn, stmp)
     send_status(repo_conn, batch, status)
 
+    case status do
+      :running ->
+        # when a batch starts set priority to 100
+        # so that we can move patches to the "front of the line" without interrupting running batches
+        raise_batch_priority(batch, 100)
+
+      _ -> :ok
+    end
+
     batch
     |> Batch.changeset(%{state: status, commit: commit, last_polled: now})
     |> Repo.update!()
