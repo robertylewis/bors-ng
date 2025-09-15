@@ -3387,7 +3387,7 @@ defmodule BorsNG.Worker.BatcherTest do
            }
 
     # Submit the second one, with a higher priority.
-    Batcher.handle_call({:set_priority, patch2.id, 10}, nil, proj.id)
+    Batcher.handle_call({:set_priority, patch2.id, 101}, nil, proj.id)
     Batcher.handle_cast({:reviewed, patch2.id, "rvr"}, proj.id)
     # Push the second one's timer, so it'll start now.
     {batch, batch2} =
