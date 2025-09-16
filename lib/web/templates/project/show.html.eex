@@ -25,6 +25,7 @@
   <thead>
     <tr role=heading><td aria-role=presentation colspan=6>
       <a href="../batches/<%= batch.id %>">Batch <%= batch.id %></a>
+      (priority <%= batch.priority %>)
       <h2 class=header>
         <%= stringify_state batch.state %>
         <span class=header-count><%= Enum.count(batch.patches) %></span>
