@@ -90,6 +90,7 @@ defmodule BorsNG.ProjectController do
       id: batch.id,
       commit: batch.commit,
       patches: Repo.all(Patch.all_for_batch(batch.id)),
+      priority: batch.priority,
       state: batch.state
     }
   end
