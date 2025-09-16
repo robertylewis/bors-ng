@@ -1,3 +1,7 @@
+:root {
+  color-scheme: light dark;
+}
+
 /* always show the scrollbar on the side; avoids ugly jumping
    show the main page with the footer pushed to the bottom */
 html {
@@ -431,5 +435,31 @@ time[title] {
   }
   .priority-cell {
     text-align: right;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  body,nav {
+      color: #ddd;
+      background-color: #111;
+  }
+  .table tbody tr[role=row]:hover,
+  .table tr:target {
+      background:#222;
+  }
+  a:link:focus {
+      color:#fff;
+  }
+  a:visited {
+      color:#8c3178;
+  }
+  a:visited:focus {
+      color:#fff;
+  }
+  a#header-logo img {
+      filter:invert(1);
+  }
+  .header-link {
+      color:#aaa;
   }
 }
